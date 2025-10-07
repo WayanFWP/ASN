@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
-from Utils import *
-from Plot import *
+from .Utils import *
 
 class Coeficient:
     def __init__(self, fs=None):
@@ -48,15 +47,6 @@ class Coeficient:
             k_index4.append(k)
             self.qj[4][k+abs(a)] = -1/256 * (dirac(k-7) + 3*dirac(k-6) + 6*dirac(k-5) + 10*dirac(k-4) + 15*dirac(k-3) + 21*dirac(k-2) + 28*dirac(k-1) + 36*dirac(k) + 37*dirac(k+1) + 34*dirac(k+2) + 27*dirac(k+3) + 18*dirac(k+4) + 10*dirac(k+5) + 4*dirac(k+6) - 4*dirac(k+7) - 10*dirac(k+8) - 18*dirac(k+9) - 27*dirac(k+10) - 34*dirac(k+11) - 37*dirac(k+12) - 36*dirac(k+13) - 28*dirac(k+14) - 21*dirac(k+15) - 15*dirac(k+16) - 10*dirac(k+17) - 6*dirac(k+18) - 3*dirac(k+19) - dirac(k+20))
         
-        plotRow(
-            x=[k_index1, k_index2, k_index3, k_index4],
-            y=[self.qj[1][0:len(k_index1)], self.qj[2][0:len(k_index2)], self.qj[3][0:len(k_index3)], self.qj[4][0:len(k_index4)]],
-            plot_type="bar",
-            title="QJ Filter Coefficients",
-            xlabel="k",
-            ylabel="Coefficient Value"
-        )   
-        
         j = 5
         a , b = self.getAnBvalues(j)
         k_index5 = []
@@ -80,7 +70,6 @@ class Coeficient:
 
         j = 8
         a, b = self.getAnBvalues(j)
-        print(f"For j=8, a: {a}, b: {b}, range length: {b - a}")
         k_index8 = []
         for k in range(a, b):
             k_index8.append(k)
@@ -179,16 +168,27 @@ class Coeficient:
             coeff -= 36*dirac(k+375) + 28*dirac(k+376) + 21*dirac(k+377) + 15*dirac(k+378) + 10*dirac(k+379) + 6*dirac(k+380)
             coeff -= 3*dirac(k+381) + dirac(k+382)
             
-            self.qj[8][k + abs(a)] = -1/1048576 * coeff
+            self.qj[8][k + abs(a)] = -1/1048576 * coeff 
 
- 
-        plotRow(
-            x=[k_index5, k_index6, k_index7, k_index8],
-            y=[self.qj[5][0:len(k_index5)], self.qj[6][0:len(k_index6)], self.qj[7][0:len(k_index7)], self.qj[8][0:len(k_index8)]],
-            plot_type="bar",
-            title="QJ Filter Coefficients",
-            xlabel="k",
-            ylabel="Coefficient Value"
-        )
-        
+    def applying(self, signal, specific_j=None, onDownsampling=False):
+        coeffs = {}
+        if specific_j is not None:
+            # Get the actual filter coefficients (non-zero part)
+            qj_filter = self.qj[specific_j]
+            
+            # Find non-zero elements to trim the filter
+            non_zero_indices = np.nonzero(qj_filter)[0]
+            if len(non_zero_indices) > 0:
+                start_idx = non_zero_indices[0]
+                end_idx = non_zero_indices[-1] + 1
+                trimmed_filter = qj_filter[start_idx:end_idx]
+            else:
+                trimmed_filter = np.array([0.0])  # fallback
+            
+            conv_result = convolve(signal, trimmed_filter)
+            if onDownsampling:
+                conv_result = conv_result[::2]
+            coeffs[f"W{specific_j}"] = conv_result
+            print(f"Applied only Q{specific_j} filter.")
+        return coeffs
     
