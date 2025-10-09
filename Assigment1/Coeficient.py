@@ -1,5 +1,5 @@
 import numpy as np
-import pandas as pd
+import matplotlib.pyplot as plt
 from .Utils import *
 
 class Coeficient:
@@ -9,7 +9,8 @@ class Coeficient:
         self.qj = np.zeros((10,10000))
         self.a = None
         self.b = None
-    
+        self.frequency_responses = {}
+        
     def getAnBvalues(self, j):
         self.a = -(round(2**j) + round(2**(j-1)) - 2)
         self.b =-(1-round(2**(j-1))) +1
@@ -17,8 +18,8 @@ class Coeficient:
         return self.a, self.b
         
     def initialize_qj_filter(self):
-        # Placeholder for filter initialization logic
-        print("QJ filter initialized.")
+        print("Initializing QJ filters using frequency domain approach...")
+        
         j = 1
         a , b = self.getAnBvalues(j)
         k_index1 = []
@@ -169,26 +170,45 @@ class Coeficient:
             coeff -= 3*dirac(k+381) + dirac(k+382)
             
             self.qj[8][k + abs(a)] = -1/1048576 * coeff 
-
-    def applying(self, signal, specific_j=None, onDownsampling=False):
+            
+        plt.figure(figsize=(12, 8))
+        plt.subplot(2,1,1)
+        plt.plot(self.qj[1], label="Q1")
+        plt.plot(self.qj[2], label="Q2")
+        plt.plot(self.qj[3], label="Q3")
+        plt.plot(self.qj[4], label="Q4")
+        plt.plot(self.qj[5], label="Q5")
+        plt.plot(self.qj[6], label="Q6")
+        plt.plot(self.qj[7], label="Q7")
+        plt.plot(self.qj[8], label="Q8")
+        plt.legend()
+        plt.grid()
+        
+        for i in range(1, 9):
+            sig = self.qj[i]
+            N = len(sig)
+            freq = np.fft.rfftfreq(N, d = 1/self.original_fs)
+            fft_vals = np.fft.rfft(sig)
+            magnitude = np.abs(fft_vals)/N
+            magnitude /= np.max(magnitude) + 1e-12
+            plt.subplot(2,1,2)
+            plt.plot(freq, magnitude, label=f"Q{i}")
+            plt.legend()
+        plt.tight_layout()
+        plt.show()
+        
+    def applying(self, signal, specific_j=None, factor=None):
         coeffs = {}
         if specific_j is not None:
             # Get the actual filter coefficients (non-zero part)
             qj_filter = self.qj[specific_j]
-            
-            # Find non-zero elements to trim the filter
-            non_zero_indices = np.nonzero(qj_filter)[0]
-            if len(non_zero_indices) > 0:
-                start_idx = non_zero_indices[0]
-                end_idx = non_zero_indices[-1] + 1
-                trimmed_filter = qj_filter[start_idx:end_idx]
-            else:
-                trimmed_filter = np.array([0.0])  # fallback
-            
-            conv_result = convolve(signal, trimmed_filter)
-            if onDownsampling:
-                conv_result = conv_result[::2]
-            coeffs[f"W{specific_j}"] = conv_result
+            conv_result = convolve(signal, qj_filter)
+
+            if factor is not None:
+                conv_result = downSample(conv_result, factor)
+                print(f"Downsampled by a factor of {factor}.")
+    
+            coeffs[specific_j] = conv_result
             print(f"Applied only Q{specific_j} filter.")
         return coeffs
     
