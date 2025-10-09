@@ -1,12 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from .Utils import *
+from Utils import *
 
 class Coeficient:
     def __init__(self, fs=None):
         self.fs = fs
         self.original_fs = fs
-        self.qj = np.zeros((10,10000))
+        self.qj = np.zeros((9,1000))
         self.a = None
         self.b = None
         self.frequency_responses = {}
@@ -171,31 +171,31 @@ class Coeficient:
             
             self.qj[8][k + abs(a)] = -1/1048576 * coeff 
             
-        plt.figure(figsize=(12, 8))
-        plt.subplot(2,1,1)
-        plt.plot(self.qj[1], label="Q1")
-        plt.plot(self.qj[2], label="Q2")
-        plt.plot(self.qj[3], label="Q3")
-        plt.plot(self.qj[4], label="Q4")
-        plt.plot(self.qj[5], label="Q5")
-        plt.plot(self.qj[6], label="Q6")
-        plt.plot(self.qj[7], label="Q7")
-        plt.plot(self.qj[8], label="Q8")
-        plt.legend()
-        plt.grid()
+        # plt.figure(figsize=(12, 8))
+        # plt.subplot(2,1,1)
+        # plt.plot(self.qj[1], label="Q1")
+        # plt.plot(self.qj[2], label="Q2")
+        # plt.plot(self.qj[3], label="Q3")
+        # plt.plot(self.qj[4], label="Q4")
+        # plt.plot(self.qj[5], label="Q5")
+        # plt.plot(self.qj[6], label="Q6")
+        # plt.plot(self.qj[7], label="Q7")
+        # plt.plot(self.qj[8], label="Q8")
+        # plt.legend()
+        # plt.grid()
         
-        for i in range(1, 9):
-            sig = self.qj[i]
-            N = len(sig)
-            freq = np.fft.rfftfreq(N, d = 1/self.original_fs)
-            fft_vals = np.fft.rfft(sig)
-            magnitude = np.abs(fft_vals)/N
-            magnitude /= np.max(magnitude) + 1e-12
-            plt.subplot(2,1,2)
-            plt.plot(freq, magnitude, label=f"Q{i}")
-            plt.legend()
-        plt.tight_layout()
-        plt.show()
+        # for i in range(1, 9):
+        #     sig = self.qj[i]
+        #     N = len(sig)
+        #     freq = np.fft.rfftfreq(N, d = 1/self.original_fs)
+        #     fft_vals = np.fft.rfft(sig)
+        #     magnitude = np.abs(fft_vals)/N
+        #     magnitude /= np.max(magnitude) + 1e-12
+        #     plt.subplot(2,1,2)
+        #     plt.plot(freq, magnitude, label=f"Q{i}")
+        #     plt.legend()
+        # plt.tight_layout()
+        # plt.show()
         
     def applying(self, signal, specific_j=None, factor=None):
         coeffs = {}
