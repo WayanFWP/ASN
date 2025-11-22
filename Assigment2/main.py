@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from Utils import *
 from plot import *
 
-namefile = "a0007"
+namefile = "a0004"
 df = pd.read_csv('dat/'+namefile+'.csv')
 print(df.shape)
 time = df.iloc[:, 0]
@@ -36,14 +36,14 @@ for i, seg_data in enumerate(pcg_segments):
             'coefficients': coefficients,
             'frequencies': frequencies,
             'time': time_axis,
-            'r_peak_index': seg_data['start_r_peak'],
+            'r_peak_index': seg_data['start_index'],
             'cycle_index': i
         })
-
+        
 # STFT Analysis
 STFT_PCG = []
 for i, seg_data in enumerate(pcg_segments):
-    freqs, times, spectrogram = stft_analysis(seg_data['segment'], fs, 40, 75)
+    freqs, times, spectrogram = stft_analysis(seg_data['segment'], fs, 100, 10)
     if freqs is not None:
         STFT_PCG.append({
             'frequencies': freqs,
@@ -52,17 +52,28 @@ for i, seg_data in enumerate(pcg_segments):
             'cycle_index': i
         })
 # Plot results
-plot_cwt_result(CWT_PCG[0]['coefficients'], CWT_PCG[0]['frequencies'], CWT_PCG[0]['time'])
 plot_stft_result(STFT_PCG, idx=0)
+
+s1, s2 = 0.5, 0.08
 
 result = detect_s1_s2(CWT_PCG[0]['coefficients'],
                       CWT_PCG[0]['frequencies'],
-                      CWT_PCG[0]['time'])
+                      CWT_PCG[0]['time'],
+                      thresh_s1=s1,
+                      thresh_s2=s2)
 
 if result is None:
-    print("S1/S2 detection failed for this beat. Skipping...")
+    print("No S1/S2 detected")
     exit()
 
 (s1_t, s1_f, s1_mask), (s2_t, s2_f, s2_mask), e = result
 
-plot_scalogram_with_s1_s2(CWT_PCG[0]['coefficients'], CWT_PCG[0]['frequencies'], CWT_PCG[0]['time'], (s1_t, s1_f, s1_mask), (s2_t, s2_f, s2_mask), e)
+seg = pcg_segments[0]
+offset = seg['start_time']
+
+s1_t_global = s1_t + offset
+s2_t_global = s2_t + offset
+
+print(f"S1 at time {s1_t_global:.3f}s, frequency {s1_f:.2f}Hz")
+print(f"S2 at time {s2_t_global:.3f}s, frequency {s2_f:.2f}Hz")
+plot_scalogram_with_s1_s2(CWT_PCG[0]['coefficients'], CWT_PCG[0]['frequencies'], CWT_PCG[0]['time'], (s1_t, s1_f, s1_mask), (s2_t, s2_f, s2_mask), e, offset=offset)

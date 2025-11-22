@@ -109,26 +109,31 @@ def convert_peaks_to_intervals(selected_peaks, pcg_data, time_data, fs):
     
     # Convert selected peaks back to original sampling rate indices
     r_peak_start = selected_peaks[0] * 2  # Convert back from downsampled indices
-    r_peak_end = selected_peaks[1] * 2
+    r_peak_end   = selected_peaks[1] * 2
     
     # Extract PCG segment between the two selected R-peaks
     pcg_segment = pcg_data.values[r_peak_start:r_peak_end]
     time_segment = time_data.values[r_peak_start:r_peak_end]
-    
+
+    # === PATCH: Add global times ===
+    start_time_global = float(time_data.values[r_peak_start])
+    end_time_global   = float(time_data.values[r_peak_end])
+    # ================================
+
     print(f"Selected interval: samples {r_peak_start} to {r_peak_end}")
     print(f"Segment duration: {len(pcg_segment)/fs:.3f} seconds")
-    
+
     # Plot the selected segment
     plt.figure(figsize=(12, 6))
     plt.subplot(2, 1, 1)
     plt.plot(time_data.values, pcg_data.values, 'k-', alpha=0.7, label='Full PCG')
     plt.plot(time_segment, pcg_segment, 'r-', linewidth=2, label='Selected PCG Segment')
-    plt.axvline(time_data.values[r_peak_start], color='r', linestyle='--', label='Start R-peak')
-    plt.axvline(time_data.values[r_peak_end], color='g', linestyle='--', label='End R-peak')
+    plt.axvline(start_time_global, color='r', linestyle='--', label='Start R-peak')
+    plt.axvline(end_time_global, color='g', linestyle='--', label='End R-peak')
     plt.ylabel('PCG Amplitude')
     plt.legend()
     plt.title('Selected PCG Interval')
-    
+
     plt.subplot(2, 1, 2)
     plt.plot(time_segment, pcg_segment, 'b-', linewidth=2)
     plt.xlabel('Time (s)')
@@ -136,21 +141,26 @@ def convert_peaks_to_intervals(selected_peaks, pcg_data, time_data, fs):
     plt.title('Zoomed Selected Segment')
     plt.tight_layout()
     plt.show()
-    
+
     return [{
         'segment': pcg_segment,
         'time': time_segment,
-        'start_r_peak': r_peak_start,
-        'end_r_peak': r_peak_end,
+        'start_index': r_peak_start,
+        'end_index': r_peak_end,
+        'start_time': start_time_global,    # <-- PATCH
+        'end_time': end_time_global,        # <-- PATCH
         'duration_samples': len(pcg_segment),
         'duration_seconds': len(pcg_segment)/fs
     }]
+
     
-def plot_scalogram_with_s1_s2(coeff, scales, times, s1, s2, E):
+def plot_scalogram_with_s1_s2(coeff, scales, times, s1, s2, E, offset=0):
     (t1, f1, S1_mask) = s1
     (t2, f2, S2_mask) = s2
 
     plt.figure(figsize=(14, 6))
+    
+    scales = 1/scales  # Convert scales to pseudo-frequencies
 
     plt.pcolormesh(times, scales, E, shading="auto", cmap="viridis")
     plt.colorbar(label="Energy")
@@ -160,11 +170,11 @@ def plot_scalogram_with_s1_s2(coeff, scales, times, s1, s2, E):
     plt.contour(times, scales, S2_mask, levels=[0.5], colors="cyan", linewidths=2)
 
     # Plot CoG points (pakai scale = 1/frequency)
-    plt.scatter(t1, 1/f1, color="red", s=100, label="S1 CoG")
-    plt.scatter(t2, 1/f2, color="cyan", s=100, label="S2 CoG")
+    plt.scatter(t1, f1, color="red", s=100, label=f"S1 CoG {t1+offset:.3f}s, freq {f1:.2f}Hz")
+    plt.scatter(t2, f2, color="cyan", s=100, label=f"S2 CoG {t2+offset:.3f}s, freq {f2:.2f}Hz")
 
     plt.xlabel("Time (s)")
-    plt.ylabel("Scale (1/Frequency)")
+    plt.ylabel("Scale")
     plt.title("CWT Scalogram with S1 & S2 CoG")
     plt.legend()
     plt.show()

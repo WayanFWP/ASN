@@ -1,10 +1,9 @@
-from scipy.signal import butter, lfilter, find_peaks
+from scipy.signal import find_peaks
 import numpy as np
-import scipy.ndimage as ndi
 
-def bandpass_filter(data, lowcut, highcut, fs, order=5):
-    low_passed = LPF(data, highcut, fs)
-    band_passed = HPF(low_passed, lowcut, fs)
+def bandpass_filter(data, lowcut, highcut, fs):
+    low_passed = HPF(data, lowcut, fs)
+    band_passed = LPF(low_passed, highcut, fs)
     return band_passed
 
 def LPF(signal, fl, fs):
@@ -41,7 +40,7 @@ def HPF(signal,fh,fs):
 
 def pan_tompkins(ecg, fs):
     # 1) Bandpass filter between 5-15 Hz
-    filtered = bandpass_filter(ecg, 5, 15, fs, order=3)
+    filtered = bandpass_filter(ecg, 5, 11, fs)
     T = 1 / fs
     
     # 2) Derivative filter (5-point derivative)
@@ -62,7 +61,7 @@ def pan_tompkins(ecg, fs):
     min_distance = int(0.2 * fs) 
     
     # Use adaptive threshold
-    threshold = 0.012 * np.max(integrated)
+    threshold = 0.05 * np.max(integrated)
     peaks, properties = find_peaks(integrated, 
                                    distance=min_distance,
                                    height=threshold)
@@ -80,27 +79,7 @@ def pan_tompkins(ecg, fs):
     
     r_peaks = np.array(r_peaks)
     
-    # Remove duplicates
-    # r_peaks = np.unique(r_peaks)
-    
     return filtered, r_peaks
-
-def segment(signal, r_peaks):
-    segments = []
-    for i in range(len(r_peaks) - 1):
-        start_idx = r_peaks[i]
-        end_idx = r_peaks[i + 1]
-        segment = signal[start_idx:end_idx]
-        
-        segments.append({
-            'segment': segment,
-            'start_r_peak': r_peaks[i],
-            'end_r_peak': r_peaks[i + 1],
-            'duration_samples': end_idx - start_idx,
-            'cycle_index': i
-        })
-    
-    return segments
 
 def morlet_wavelet_delphi(t, W0):
     norm_factor = np.pi ** (-0.25)
@@ -144,15 +123,25 @@ def cwt_analysis(pcg_segment, fs):
     return coefficients, frequencies, time_axis_segment
 
 
+def windowing(method, n_per_seg):
+    if method == "hanning":
+        window = 0.5 - 0.5 * np.cos(2 * np.pi * np.arange(n_per_seg) / (n_per_seg - 1))  # Hanning window
+    elif method == "hamming":
+        window = 0.54 - 0.46 * np.cos(2 * np.pi * np.arange(n_per_seg) / (n_per_seg - 1))  # Hamming window
+    elif method == "triangular":
+        window = 1 - abs(2 * np.arange(n_per_seg) - (n_per_seg + 1)) / (n_per_seg - 1)  # Triangular window
+    else:
+        window = np.ones(n_per_seg)  # Rectangular window
+    return window
+
+
 def stft_analysis(pcg_segment, fs, window_length_ms, overlap_pct):
     if len(pcg_segment) == 0: return None, None, None
     n_per_seg = int(window_length_ms / 1000 * fs)
     n_overlap = int(n_per_seg * (overlap_pct / 100))
     hop_length = n_per_seg - n_overlap
 
-    # window = 0.5 - 0.5 * np.cos(2 * np.pi * np.arange(n_per_seg) / (n_per_seg - 1))  # Hanning window
-    # window = 0.54 - 0.46 * np.cos(2 * np.pi * np.arange(n_per_seg) / (n_per_seg - 1))  # Hamming window
-    window = 1 - abs(2 * np.arange(n_per_seg) - (n_per_seg + 1)) / (n_per_seg - 1)  # Triangular window
+    window = windowing("hanning", n_per_seg)
     
     stft_frames = []
     num_frames = 1 + int(np.floor((len(pcg_segment) - n_per_seg) / hop_length))
@@ -199,31 +188,21 @@ def flood_fill(si, ti, label, mask, labels, S, T):
         stack.append((i, j+1))
 
 
-def detect_s1_s2(coeff, scales, times, f0_delphi=0.849):
+def detect_s1_s2(coeff, scales, times, f0_delphi=0.849, thresh_s1=0.6, thresh_s2=0.15):
     E = np.abs(coeff)**2
     S, T = E.shape
 
-    # ======================================================
-    # STEP 1 : PRE-SPLIT WAKTU S1 & S2 BERDASARKAN ENVELOPE
-    # ======================================================
     energy_time = np.sum(E, axis=0)
     t_peak1 = times[np.argmax(energy_time)]
-    time_boundary = t_peak1 + 0.2     # 150 ms after S1 (adjustable)
-
-    # ======================================================
-    # STEP 2 : THRESHOLDING UNTUK S1 & S2
-    # ======================================================
-    thr_s1 = 0.60 * np.max(E)
-    thr_s2 = 0.15 * np.max(E)
+    time_boundary = t_peak1 + 0.3     
+    
+    thr_s1 = thresh_s1 * np.max(E)
+    thr_s2 = thresh_s2 * np.max(E)
 
     mask_s1 = (E > thr_s1) & (times[None, :] < time_boundary)
     mask_s2 = (E > thr_s2) & (times[None, :] >= time_boundary)
 
     mask = mask_s1 | mask_s2
-
-    # ======================================================
-    # STEP 3 : CONNECTED COMPONENT LABELING
-    # ======================================================
     labels = np.zeros_like(mask, dtype=int)
     current_label = 0
 
@@ -236,10 +215,7 @@ def detect_s1_s2(coeff, scales, times, f0_delphi=0.849):
     if current_label < 2:
         print("Warning: fewer than 2 heart sound regions.")
         return None
-
-    # ======================================================
-    # STEP 4 : SORT REGION BERDASARKAN WAKTU CoG
-    # ======================================================
+    
     regions = []
     for lab in range(1, current_label + 1):
         m = (labels == lab)
@@ -253,9 +229,6 @@ def detect_s1_s2(coeff, scales, times, f0_delphi=0.849):
     regions.sort(key=lambda x: x[0])
     label_s1 = regions[0][1]
     S1_mask = (labels == label_s1)
-    # ======================================================
-    # STEP 5 : HITUNG COG
-    # ======================================================
     
     t_s1, s_s1 = compute_cog(S1_mask, times, scales, E)
     f_s1 = f0_delphi / s_s1
