@@ -11,6 +11,11 @@ class Coeficient:
         self.b = None
         self.frequency_responses = {}
         
+        self.g_coeffs = np.array([0, 0, -2, 2])
+        self.h_coeffs = np.array([0, 1/8, 3/8, 3/8])
+        self.n_range = np.arange(-2, 2)
+
+        
     def getAnBvalues(self, j):
         self.a = -(round(2**j) + round(2**(j-1)) - 2)
         self.b =-(1-round(2**(j-1))) +1
@@ -184,19 +189,71 @@ class Coeficient:
         # plt.legend()
         # plt.grid()
         
-        # for i in range(1, 9):
-        #     sig = self.qj[i]
-        #     N = len(sig)
-        #     freq = np.fft.rfftfreq(N, d = 1/self.original_fs)
-        #     fft_vals = np.fft.rfft(sig)
-        #     magnitude = np.abs(fft_vals)/N
-        #     magnitude /= np.max(magnitude) + 1e-12
-        #     plt.subplot(2,1,2)
-        #     plt.plot(freq, magnitude, label=f"Q{i}")
-        #     plt.legend()
-        # plt.tight_layout()
-        # plt.show()
+        for i in range(1, 9):
+            sig = self.qj[i]
+            N = len(sig)
+            freq = np.fft.rfftfreq(N, d = 1/self.original_fs)
+            fft_vals = np.fft.rfft(sig)
+            magnitude = np.abs(fft_vals)/N
+            magnitude /= np.max(magnitude) + 1e-12
+            plt.subplot(2,1,2)
+            plt.plot(freq, magnitude, label=f"Q{i}")
+            plt.legend()
+        plt.tight_layout()
+        plt.show()
+                
+    def filter_response(self):
+        fs = self.original_fs
+        g = self.g_coeffs
+        h = self.h_coeffs
+               
+        max_freq_index = 128 * int(np.round(fs / 2))
+        array_size = max(20000, max_freq_index + 1)
+        Hw = np.zeros(array_size)
+        Gw = np.zeros(array_size)
+
+        for i_freq in range(0, array_size):
+            reG, imG, reH, imH = 0.0, 0.0, 0.0, 0.0
+            for k_idx, k in enumerate(self.n_range):
+                angle = k * 2 * np.pi * i_freq / fs
+                reG += g[k_idx] * np.cos(angle)
+                imG -= g[k_idx] * np.sin(angle)
+                reH += h[k_idx] * np.cos(angle)
+                imH -= h[k_idx] * np.sin(angle)
+            Hw[i_freq] = np.sqrt((reH**2) + (imH**2))
+            Gw[i_freq] = np.sqrt((reG**2) + (imG**2))
+
+        # --- 2. Calculate Q ---
+        n_plot_points = int(np.round(fs / 2)) + 1
+        Q = np.zeros((8, n_plot_points))
+        i_vals_plot = np.arange(0, n_plot_points)
+
+        for i in i_vals_plot:
+                # Need to check bounds because index can exceed array_size
+            Q[0][i] = Gw[i] if i < array_size else 0
+            Q[1][i] = Gw[2*i] * Hw[i] if 2*i < array_size and i < array_size else 0
+            Q[2][i] = Gw[4*i] * Hw[2*i] * Hw[i] if 4*i < array_size and 2*i < array_size and i < array_size else 0
+            Q[3][i] = Gw[8*i] * Hw[4*i] * Hw[2*i] * Hw[i] if 8*i < array_size and 4*i < array_size and 2*i < array_size and i < array_size else 0
+            Q[4][i] = Gw[16*i] * Hw[8*i] * Hw[4*i] * Hw[2*i] * Hw[i] if 16*i < array_size and 8*i < array_size and 4*i < array_size and 2*i < array_size and i < array_size else 0
+            Q[5][i] = Gw[32*i] * Hw[16*i] * Hw[8*i] * Hw[4*i] * Hw[2*i] * Hw[i] if 32*i < array_size and 16*i < array_size and 8*i < array_size and 4*i < array_size and 2*i < array_size and i < array_size else 0
+            Q[6][i] = Gw[64*i] * Hw[32*i] * Hw[16*i] * Hw[8*i] * Hw[4*i] * Hw[2*i] * Hw[i] if 64*i < array_size and 32*i < array_size and 16*i < array_size and 8*i < array_size and 4*i < array_size and 2*i < array_size and i < array_size else 0
+            Q[7][i] = Gw[128*i] * Hw[64*i] * Hw[32*i] * Hw[16*i] * Hw[8*i] * Hw[4*i] * Hw[2*i] * Hw[i] if 128*i < array_size and 64*i < array_size and 32*i < array_size and 16*i < array_size and 8*i < array_size and 4*i < array_size and 2*i < array_size and i < array_size else 0
         
+        fig, ax = plt.subplots(figsize=(10, 6))
+        fig.patch.set_facecolor('white')
+        
+        for j in range(8):
+            ax.plot(i_vals_plot, Q[j], label=f"Q{j+1}")
+        ax.set_title(f'DWT Cascaded Filter Response (fs = {self.fs:.1f} Hz)', color='black')
+        ax.set_xlabel('Frequency (Hz)', color='black')
+        ax.set_ylabel('Magnitude', color='black')
+        ax.legend()
+        ax.grid(True, linestyle='--', alpha=0.6)
+        ax.tick_params(colors='black')
+        ax.set_facecolor('white')
+        fig.tight_layout()
+        fig.show()
+            
     def applying(self, signal, specific_j=None, factor=None):
         coeffs = {}
         if specific_j is not None:

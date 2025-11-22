@@ -3,68 +3,87 @@ from Utils import *
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from HRV import HRV as feature
 
-# from scipy.signal import find_peaks
-from FindPeak import find_peaks
+from Analyze import Respiratory, Vasometric, HeartRate
+
+# Load data
+# load_file = pd.read_csv("data/bidmc_07_Signals.csv")
+load_file = pd.read_csv("data/wayan2.csv")
+# load_file = pd.read_csv("data/karen.csv")
+# load_file = pd.read_csv("data/amanda-real.csv")
 
 # Initialize Coeficient
-fs = 125
+# fs = 120
+fs = 100
+# fs = 50
 factor = 3
 fs = fs / factor
 
 coef = Coeficient(fs)
 coef.initialize_qj_filter()
+HR = HeartRate(fs)
+Resp = Respiratory(fs)
+Vaso = Vasometric(fs)
 
-load_file = pd.read_csv("../data/bidmc_01_Signals.csv")
-
-# Load data
-print("Available columns:", load_file.columns.tolist())
-selected_signal = "PLETH" if "PLETH" in load_file.columns else load_file.columns[2]
-time = downSample(load_file.iloc[:, 0].values, factor)  # Use first column for time
+# selected_signal = load_file.columns[1]
+selected_signal = load_file.columns[2]
 signal = downSample(load_file[selected_signal].values, factor)
-data = pd.DataFrame({'Time': time, 'Signal': signal})
 
-mean_signal = np.mean(data['Signal'].values)
-data['Signal'] = data['Signal'].values - mean_signal  # Centering
-# Apply DWT1-8
-selected_j = 6
-signal_DWT = coef.applying(data['Signal'].values, specific_j=selected_j)
+# == preprocessing ==
+mean_signal = np.mean(signal)
+signal = signal - mean_signal  # Centering
+signal = BPF(signal, 1, 45, fs) # Bandpass Filter 1-40 Hz
 
-plt.figure(figsize=(12,8))
+# == Analysis ==
+# Heart Rate Analysis
+signal_Hr, peaks_Hr, BPM = HR.analyze(signal)
+rr_intervals = np.diff(peaks_Hr / fs)
+print(f"BPM: {BPM}")
+
+# Apply DWT
+J_Resp = 7
+J_vaso = 8
+
+# Respiratory Analysis
+signal_DWT = coef.applying(signal, specific_j=J_Resp)
+resp_data , resp_peaks, BrPM = Resp.analyze(signal_DWT[J_Resp])
+freq, magnitude, peak_freq, peak_mag = Resp.get_freq()
+resp_duration = len(signal_DWT[J_Resp]) / fs  # in seconds
+print(f"Respiratory frequency: {peak_freq} Hz")
+print(f"BrPM: {BrPM}")
+
+# Vasometric Analysis
+signal_dwtvaso = coef.applying(signal, specific_j=J_vaso)
+vaso_freq, vaso_mag, peak_vaso, vaso_peak_mag = Vaso.analyze(signal_dwtvaso[J_vaso])
+print(f"Vasometric Peak Frequency: {peak_vaso} Hz")
+
+# Compute HRV features
+hrv = feature(rr_intervals)
+hrv.print_time_features()
+hrv.print_nonlinear_features()
+
+# Plotting
+plt.figure(figsize=(12, 8))
 plt.subplot(3,1,1)
-plt.plot(data['Signal'], label="Raw Data", color="red")
-plt.plot(signal_DWT[selected_j], label=f"Dwt {selected_j}", color="blue")
-plt.ylabel("Amp")
+plt.plot(signal_Hr, label='Heart Rate Signal')
+plt.plot(peaks_Hr, signal_Hr[peaks_Hr], "x", label='Detected Peaks')
+plt.title(f'Heart Rate Signal - BPM: {BPM:.2f}')
+plt.xlabel('Samples')
+plt.ylabel('Amplitude')
 plt.legend()
-
-time_diff = np.arange(len(signal_DWT[selected_j]))/fs
-
-peaks = find_peaks(signal_DWT[selected_j], height=np.mean(signal_DWT[selected_j])*1.5, distance =fs*0.5)
-rr_interval = np.diff(time_diff[peaks])
-BrPM = 60 / np.mean(rr_interval) 
-print(len(rr_interval))
-print(BrPM)
-
-# Mark peaks with larger red circles
-plt.scatter(peaks, signal_DWT[selected_j][peaks], color='red', s=100, 
-           marker='o', edgecolors='black', linewidth=2, label='Peaks', zorder=5)
-plt.ylabel("Amplitude")
-plt.xlabel("Sample Index")
+plt.subplot(3,1,2)
+plt.plot(signal_DWT[J_Resp], label='Respiratory Signal (DWT Level 7)')
+plt.plot(resp_peaks, signal_DWT[J_Resp][resp_peaks], "x", label='Detected Peaks')
+plt.title(f'Respiratory Signal - Peak Freq: {peak_freq:.2f} Hz')
+plt.xlabel('Samples')
+plt.ylabel('Amplitude')
 plt.legend()
-plt.grid(True, alpha=0.3)
+plt.subplot(3,1,3)
+plt.plot(signal_dwtvaso[J_vaso], label='Vasometric Signal (DWT Level 8)')
+plt.title(f'Vasometric Signal - Peak Freq: {peak_vaso:.2f} Hz')
+plt.xlabel('Samples')
+plt.ylabel('Amplitude')
+plt.legend()
+plt.tight_layout()
 plt.show()
-
-hrv_result= hrv_time_domain(rr_interval)
-print("HRV Time Domain Metrics:")
-for key, value in hrv_result.items():
-    print(f"{key}: {value}")
-    
-hrv_freq = hrv_frequency_domain(rr_interval)
-print("\nHRV Frequency Domain Metrics:")
-for key, value in hrv_freq.items():
-    print(f"{key}: {value}")
-    
-hrv_nonlin = hrv_nonlinear(rr_interval, show_plot=False)
-print("\nHRV Non-Linear Metrics:")
-for key, value in hrv_nonlin.items():
-    print(f"{key}: {value}")
