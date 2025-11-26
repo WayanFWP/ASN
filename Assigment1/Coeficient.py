@@ -15,7 +15,6 @@ class Coeficient:
         self.h_coeffs = np.array([0, 1/8, 3/8, 3/8])
         self.n_range = np.arange(-2, 2)
         
-        # Changed from self.gui to self.gui_mode for consistency with GUI.py
         self.gui_mode = False
 
     def getAnBvalues(self, j):
