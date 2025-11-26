@@ -14,16 +14,23 @@ class Coeficient:
         self.g_coeffs = np.array([0, 0, -2, 2])
         self.h_coeffs = np.array([0, 1/8, 3/8, 3/8])
         self.n_range = np.arange(-2, 2)
-
         
+        self.gui_mode = False
+
     def getAnBvalues(self, j):
         self.a = -(round(2**j) + round(2**(j-1)) - 2)
-        self.b =-(1-round(2**(j-1))) +1
-        print(f"Computed a: {self.a}, b: {self.b} for j: {j}")
+        self.b = -(1-round(2**(j-1))) + 1
+        
+        # Only print if not in GUI mode
+        if not self.gui_mode:
+            print(f"Computed a: {self.a}, b: {self.b} for j: {j}")
         return self.a, self.b
         
     def initialize_qj_filter(self):
-        print("Initializing QJ filters using frequency domain approach...")
+        # Only print if not in GUI mode
+        if not self.gui_mode:
+            print("Initializing QJ filters using frequency domain approach...")
+        
         
         j = 1
         a , b = self.getAnBvalues(j)
@@ -176,126 +183,112 @@ class Coeficient:
             
             self.qj[8][k + abs(a)] = -1/1048576 * coeff 
             
-        fs = self.original_fs
-        n_points = 2048  # Use more points for smoother curves
-        freq_axis = np.linspace(0, fs/2, n_points)
-        
-        # Compute G(w) and H(w) responses
-        omega = 2 * np.pi * freq_axis / fs
-        
-        # G filter (high-pass)
-        G_response = np.zeros(n_points, dtype=complex)
-        for i, w in enumerate(omega):
-            G_response[i] = -2j * np.sin(w)
-        
-        # H filter (low-pass) 
-        H_response = np.zeros(n_points, dtype=complex)
-        for i, w in enumerate(omega):
-            H_response[i] = (1/8) * (1 + 3*np.exp(-1j*w) + 3*np.exp(-2j*w) + np.exp(-3j*w))
-        
-        # Calculate Q responses using cascade formula
-        Q = np.zeros((8, n_points))
-        
-        for i in range(n_points):
-            # Q1 = |G(w)|
-            Q[0][i] = np.abs(G_response[i])
+        # Store filter responses for later use (but don't show plot if in GUI mode)
+        self.store_filter_responses()
+
+    def store_filter_responses(self):
+        """Store filter responses for later plotting"""
+        try:
+            fs = self.original_fs
+            if fs is None:
+                raise ValueError("Sampling frequency (fs) must be set to store filter responses.")
+            n_points = 2048  # Use more points for smoother curves
+            freq_axis = np.linspace(0, fs/2, n_points)
             
-            # For j > 1: Qj(w) = |G(2^(j-1)*w)| * ∏(k=0 to j-2) |H(2^k*w)|
-            for j in range(2, 9):  # j = 2 to 8
-                w_scaled = omega[i] * (2**(j-1))
-                if w_scaled <= np.pi:  # Avoid aliasing
-                    # G component at scaled frequency
-                    G_scaled = -2j * np.sin(w_scaled)
-                    Q_val = np.abs(G_scaled)
-                    
-                    # H cascade components
-                    for k in range(j-1):
-                        w_h = omega[i] * (2**k)
-                        if w_h <= np.pi:
-                            H_scaled = (1/8) * (1 + 3*np.exp(-1j*w_h) + 3*np.exp(-2j*w_h) + np.exp(-3j*w_h))
-                            Q_val *= np.abs(H_scaled)
-                        else:
-                            Q_val = 0
-                            break
-                    
-                    Q[j-1][i] = Q_val
-                else:
-                    Q[j-1][i] = 0
+            # Compute G(w) and H(w) responses
+            omega = 2 * np.pi * freq_axis / fs
+            
+            # G filter (high-pass)
+            G_response = np.zeros(n_points, dtype=complex)
+            for i, w in enumerate(omega):
+                G_response[i] = -2j * np.sin(w)
+            
+            # H filter (low-pass) 
+            H_response = np.zeros(n_points, dtype=complex)
+            for i, w in enumerate(omega):
+                H_response[i] = (1/8) * (1 + 3*np.exp(-1j*w) + 3*np.exp(-2j*w) + np.exp(-3j*w))
+            
+            # Calculate Q responses using cascade formula
+            Q = np.zeros((8, n_points))
+            
+            for i in range(n_points):
+                # Q1 = |G(w)|
+                Q[0][i] = np.abs(G_response[i])
+                
+                # For j > 1: Qj(w) = |G(2^(j-1)*w)| * ∏(k=0 to j-2) |H(2^k*w)|
+                for j in range(2, 9):  # j = 2 to 8
+                    w_scaled = omega[i] * (2**(j-1))
+                    if w_scaled <= np.pi:  # Avoid aliasing
+                        # G component at scaled frequency
+                        G_scaled = -2j * np.sin(w_scaled)
+                        Q_val = np.abs(G_scaled)
+                        
+                        # H cascade components
+                        for k in range(j-1):
+                            w_h = omega[i] * (2**k)
+                            if w_h <= np.pi:
+                                H_scaled = (1/8) * (1 + 3*np.exp(-1j*w_h) + 3*np.exp(-2j*w_h) + np.exp(-3j*w_h))
+                                Q_val *= np.abs(H_scaled)
+                            else:
+                                Q_val = 0
+                                break
+                        
+                        Q[j-1][i] = Q_val
+                    else:
+                        Q[j-1][i] = 0
+            
+            # Store for later use
+            self.frequency_responses = {
+                'freq_axis': freq_axis,
+                'Q_responses': Q
+            }
+            
+        except Exception as e:
+            if not self.gui_mode:
+                print(f"Error storing filter responses: {e}")
+
+    def plot_filter_responses(self, fig=None):
+        """Plot filter responses in the provided figure"""
+        if not self.frequency_responses:
+            self.store_filter_responses()
         
-        # Plot the frequency responses
-        plt.figure(figsize=(12, 8))
+        if fig is None:
+            # Only create new figure if not in GUI mode
+            if not self.gui_mode:
+                fig = plt.figure(figsize=(12, 8))
+            else:
+                return None
         
+        ax = fig.add_subplot(111)
+        
+        freq_axis = self.frequency_responses['freq_axis']
+        Q = self.frequency_responses['Q_responses']
+                
         for i in range(8):
             # Normalize each Q response
-            max_val = np.max(Q[i])
+            arr = Q[i]
+
+            if arr.size == 0 or np.all(np.isnan(arr)):
+                continue  # skip broken/noisy response
+
+            max_val = np.nanmax(arr)
             if max_val > 0:
-                Q_normalized = Q[i] / max_val
+                Q_normalized = arr / max_val
             else:
-                Q_normalized = Q[i]
-            plt.plot(freq_axis, Q_normalized, label=f"Q{i+1}", linewidth=2)
-        
-        plt.xlabel("Frequency (Hz)")
-        plt.ylabel("Normalized Magnitude")
-        plt.title("DWT Filter Bank Frequency Responses")
-        plt.legend()
-        plt.grid(True, alpha=0.3)
-        plt.xlim(0, fs/2)
-        plt.ylim(0, 1.1)
-        plt.tight_layout()
-        plt.show()
-        
-    def filter_response(self):
-        fs = self.original_fs
-        g = self.g_coeffs
-        h = self.h_coeffs
-               
-        max_freq_index = 128 * int(np.round(fs / 2))
-        array_size = max(20000, max_freq_index + 1)
-        Hw = np.zeros(array_size)
-        Gw = np.zeros(array_size)
+                Q_normalized = arr
 
-        for i_freq in range(0, array_size):
-            reG, imG, reH, imH = 0.0, 0.0, 0.0, 0.0
-            for k_idx, k in enumerate(self.n_range):
-                angle = k * 2 * np.pi * i_freq / fs
-                reG += g[k_idx] * np.cos(angle)
-                imG -= g[k_idx] * np.sin(angle)
-                reH += h[k_idx] * np.cos(angle)
-                imH -= h[k_idx] * np.sin(angle)
-            Hw[i_freq] = np.sqrt((reH**2) + (imH**2))
-            Gw[i_freq] = np.sqrt((reG**2) + (imG**2))
+            ax.plot(freq_axis, Q_normalized, label=f"Q{i+1}", linewidth=2)
 
-        # --- 2. Calculate Q ---
-        n_plot_points = int(np.round(fs / 2)) + 1
-        Q = np.zeros((8, n_plot_points))
-        i_vals_plot = np.arange(0, n_plot_points)
-
-        for i in i_vals_plot:
-                # Need to check bounds because index can exceed array_size
-            Q[0][i] = Gw[i] if i < array_size else 0
-            Q[1][i] = Gw[2*i] * Hw[i] if 2*i < array_size and i < array_size else 0
-            Q[2][i] = Gw[4*i] * Hw[2*i] * Hw[i] if 4*i < array_size and 2*i < array_size and i < array_size else 0
-            Q[3][i] = Gw[8*i] * Hw[4*i] * Hw[2*i] * Hw[i] if 8*i < array_size and 4*i < array_size and 2*i < array_size and i < array_size else 0
-            Q[4][i] = Gw[16*i] * Hw[8*i] * Hw[4*i] * Hw[2*i] * Hw[i] if 16*i < array_size and 8*i < array_size and 4*i < array_size and 2*i < array_size and i < array_size else 0
-            Q[5][i] = Gw[32*i] * Hw[16*i] * Hw[8*i] * Hw[4*i] * Hw[2*i] * Hw[i] if 32*i < array_size and 16*i < array_size and 8*i < array_size and 4*i < array_size and 2*i < array_size and i < array_size else 0
-            Q[6][i] = Gw[64*i] * Hw[32*i] * Hw[16*i] * Hw[8*i] * Hw[4*i] * Hw[2*i] * Hw[i] if 64*i < array_size and 32*i < array_size and 16*i < array_size and 8*i < array_size and 4*i < array_size and 2*i < array_size and i < array_size else 0
-            Q[7][i] = Gw[128*i] * Hw[64*i] * Hw[32*i] * Hw[16*i] * Hw[8*i] * Hw[4*i] * Hw[2*i] * Hw[i] if 128*i < array_size and 64*i < array_size and 32*i < array_size and 16*i < array_size and 8*i < array_size and 4*i < array_size and 2*i < array_size and i < array_size else 0
-        
-        fig, ax = plt.subplots(figsize=(10, 6))
-        fig.patch.set_facecolor('white')
-        
-        for j in range(8):
-            ax.plot(i_vals_plot, Q[j], label=f"Q{j+1}")
-        ax.set_title(f'DWT Cascaded Filter Response (fs = {self.fs:.1f} Hz)', color='black')
-        ax.set_xlabel('Frequency (Hz)', color='black')
-        ax.set_ylabel('Magnitude', color='black')
+        ax.set_xlabel("Frequency (Hz)")
+        ax.set_ylabel("Normalized Magnitude")
+        ax.set_title("DWT Filter Bank Frequency Responses")
         ax.legend()
-        ax.grid(True, linestyle='--', alpha=0.6)
-        ax.tick_params(colors='black')
-        ax.set_facecolor('white')
-        fig.tight_layout()
-        fig.show()
-            
+        ax.grid(True, alpha=0.3)
+        ax.set_xlim(0, self.original_fs/2 if self.original_fs else self.fs/2)
+        ax.set_ylim(0, 1.1)
+        
+        return fig
+        
     def applying(self, signal, specific_j=None, factor=None):
         coeffs = {}
         if specific_j is not None:
@@ -305,9 +298,10 @@ class Coeficient:
 
             if factor is not None:
                 conv_result = downSample(conv_result, factor)
-                print(f"Downsampled by a factor of {factor}.")
+                if not self.gui_mode:
+                    print(f"Downsampled by a factor of {factor}.")
     
             coeffs[specific_j] = conv_result
-            print(f"Applied only Q{specific_j} filter.")
+            if not self.gui_mode:
+                print(f"Applied only Q{specific_j} filter.")
         return coeffs
-    

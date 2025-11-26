@@ -7,8 +7,8 @@ class Complex128(ctypes.Structure):
                 ("imag", ctypes.c_double)]
 
 # Load .so
-convo = ctypes.CDLL("/home/nayaw/project/ASN/Assigment1/Acceleration/convolution.so")
-fft = ctypes.CDLL("/home/nayaw/project/ASN/Assigment1/Acceleration/FFT.so")
+convo = ctypes.CDLL("Acceleration/convolution.so")
+fft = ctypes.CDLL("Acceleration/FFT.so")
 
 # C function signature: double* convolution(const double*, int, const double*, int)
 convo.convolution.argtypes = [
