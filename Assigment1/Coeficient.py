@@ -32,7 +32,7 @@ class Coeficient:
         if not self.gui_mode:
             print("Initializing QJ filters using frequency domain approach...")
         
-        # ...existing code for j=1 through j=8...
+        
         j = 1
         a , b = self.getAnBvalues(j)
         k_index1 = []
