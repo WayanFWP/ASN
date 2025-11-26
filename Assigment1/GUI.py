@@ -764,7 +764,7 @@ Vasometric Freq: {self.results['metrics']['vasometric_freq_hz']:.4f} Hz"""
 
 def main():
     root = tk.Tk()
-    app = SignalAnalysisGUI(root)
+    SignalAnalysisGUI(root)
     root.mainloop()
 
 if __name__ == "__main__":
