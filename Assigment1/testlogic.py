@@ -9,14 +9,14 @@ from Analyze import Respiratory, Vasometric, HeartRate
 
 # Load data
 # load_file = pd.read_csv("data/bidmc_07_Signals.csv")
-# load_file = pd.read_csv("data/wayan2.csv")
-load_file = pd.read_csv("data/karen.csv")
+load_file = pd.read_csv("data/wayan2.csv")
+# load_file = pd.read_csv("data/karen.csv")
 # load_file = pd.read_csv("data/amanda-real.csv")
 
 # Initialize Coeficient
 # fs = 120
-# fs = 100
-fs = 50
+fs = 100
+# fs = 50
 factor = 3
 fs = fs / factor
 
@@ -26,8 +26,8 @@ HR = HeartRate(fs)
 Resp = Respiratory(fs)
 Vaso = Vasometric(fs)
 
-selected_signal = load_file.columns[1]
-# selected_signal = load_file.columns[2]
+# selected_signal = load_file.columns[1]
+selected_signal = load_file.columns[2]
 signal = downSample(load_file[selected_signal].values, factor)
 
 # == preprocessing ==
