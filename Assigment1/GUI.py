@@ -4,7 +4,6 @@ import threading
 import queue
 import sys
 import io
-import os
 from contextlib import redirect_stdout, redirect_stderr  # Fixed import
 import pandas as pd
 import numpy as np
