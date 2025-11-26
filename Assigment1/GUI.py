@@ -710,7 +710,6 @@ Vasometric Freq: {self.results['metrics']['vasometric_freq_hz']:.4f} Hz"""
                                 'Unit': self.get_unit(key)
                             })
                     
-                    import pandas as pd
                     df = pd.DataFrame(data)
                     df.to_csv(filename, index=False)
                     
