@@ -191,6 +191,8 @@ class Coeficient:
         """Store filter responses for later plotting"""
         try:
             fs = self.original_fs
+            if fs is None:
+                raise ValueError("Sampling frequency (fs) must be set to store filter responses.")
             n_points = 2048  # Use more points for smoother curves
             freq_axis = np.linspace(0, fs/2, n_points)
             
