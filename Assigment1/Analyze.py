@@ -26,8 +26,9 @@ class Respiratory:
         
         # Process the respiratory signal data
         min_dist_sample = int(self.fs * 0.5)  # Minimum distance between peaks in samples
-        # peaks, _ = find_peaks(signal_data, height=0, distance=max(1, min_dist_sample), prominence=0.25 * np.std(signal_data))
-        peaks, _ = find_peaks(signal_data, height=0, distance=max(1, min_dist_sample), prominence=0.5 * np.std(signal_data))
+        # peaks, _ = find_peaks(signal_data, height=0, distance=max(1, min_dist_sample), prominence=1.25 * np.std(signal_data))
+        peaks, _ = find_peaks(signal_data, height=0, distance=max(1, min_dist_sample), prominence=1. * np.std(signal_data))
+        # peaks, _ = find_peaks(signal_data, height=0, distance=max(1, min_dist_sample), prominence=.25 * np.std(signal_data))
         
         duration_s = len(signal_data) / self.fs
         num_peaks = len(peaks)
