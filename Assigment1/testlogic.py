@@ -9,14 +9,14 @@ from Analyze import Respiratory, Vasometric, HeartRate
 
 # Load data
 # load_file = pd.read_csv("data/bidmc_07_Signals.csv")
-load_file = pd.read_csv("data/wayan2.csv")
-# load_file = pd.read_csv("data/karen.csv")
+# load_file = pd.read_csv("data/wayan2.csv")
+load_file = pd.read_csv("data/karen.csv")
 # load_file = pd.read_csv("data/amanda-real.csv")
 
 # Initialize Coeficient
 # fs = 120
-fs = 100
-# fs = 50
+# fs = 100
+fs = 50
 factor = 3
 fs = fs / factor
 
@@ -26,8 +26,8 @@ HR = HeartRate(fs)
 Resp = Respiratory(fs)
 Vaso = Vasometric(fs)
 
-# selected_signal = load_file.columns[1]
-selected_signal = load_file.columns[2]
+selected_signal = load_file.columns[1]
+# selected_signal = load_file.columns[2]
 signal = downSample(load_file[selected_signal].values, factor)
 
 # == preprocessing ==
@@ -42,7 +42,7 @@ rr_intervals = np.diff(peaks_Hr / fs)
 print(f"BPM: {BPM}")
 
 # Apply DWT
-J_Resp = 7
+J_Resp = 5
 J_vaso = 8
 
 # Respiratory Analysis
@@ -62,6 +62,7 @@ print(f"Vasometric Peak Frequency: {peak_vaso} Hz")
 hrv = feature(rr_intervals)
 hrv.print_time_features()
 hrv.print_nonlinear_features()
+hrv.print_frequency_features()
 
 # Plotting
 plt.figure(figsize=(12, 8))

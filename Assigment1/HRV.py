@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.signal import welch
+from scipy.integrate import trapezoid
 from Utils import *  
 
 class TimeDomain:
@@ -128,31 +129,27 @@ class TimeDomain:
         return float((rmssd / (mean_nn + 1e-12)) * 100.0)
     
     def Skewness(self, unbiased=True):
+        """
+        Calculate skewness of RR intervals.
+        
+        Parameters:
+        - unbiased: Apply bias correction (default True)
+        - method: 'standard' or 'diff' - use standard skewness or difference-based skewness
+        """
         rr_ms = self._rr_ms()
-        print(np.sort(rr_ms)[-10:])
-
-        x = np.asarray(rr_ms, dtype=float)
-        N = x.size
-        mean = np.mean(x)
-        s = np.std(x, ddof=1)
-        if s == 0:
+        # Alternative method using successive differences
+        if rr_ms.size < 2:
             return 0.0
-
-        m3 = np.mean((x - mean) ** 3)
-        skew = m3 / (s ** 3)
-
-        if unbiased and N > 2:
-            skew *= (np.sqrt(N * (N - 1)) / (N - 2))  # Correct correction factor
             
-        import matplotlib.pyplot as plt
-        plt.hist(self._rr_ms(), bins=50)
-        plt.xlabel("RR (ms)")
-        plt.ylabel("Count")
-        plt.title("NN Interval Histogram")
-        plt.show()
-
-        return skew
-
+        diff = np.diff(rr_ms)
+        if diff.size == 0:
+            return 0.0
+            
+        numerator = np.mean(diff**3)
+        denominator = (np.sqrt(np.mean(diff**2)))**3
+        skewness = numerator / denominator if denominator != 0 else 0
+        return float(skewness)
+        
     def get_features(self):
         return {
             "SDNN_ms": self.SDNN(),
@@ -192,6 +189,49 @@ class FrequencyDomain:
         freq, psd = welch(self.rr_intervals, fs=fs, nperseg=min(256, self.n))
         self.freqs, self.psd = freq, psd
         return freq, psd
+
+    def calculate_freq_domain_features(self, fxx, pxx):
+        """Calculates VLF, LF, HF power, LF/HF ratio, LFnu, HFnu, and peak frequencies."""
+        features = {}
+
+        # --- Define frequency bands ---
+        vlf_band = (fxx >= 0.003) & (fxx < 0.04)
+        lf_band = (fxx >= 0.04) & (fxx < 0.15)
+        hf_band = (fxx >= 0.15) & (fxx < 0.4)
+
+        # --- Integrate PSD to get power in each band ---
+        features["VLF"] = trapezoid(pxx[vlf_band], fxx[vlf_band]) if np.any(vlf_band) else 0
+        features["LF"] = trapezoid(pxx[lf_band], fxx[lf_band]) if np.any(lf_band) else 0
+        features["HF"] = trapezoid(pxx[hf_band], fxx[hf_band]) if np.any(hf_band) else 0
+
+        # --- Calculate derived ratios ---
+        lf_plus_hf = features["LF"] + features["HF"]
+        features["Total Power (LF+HF)"] = lf_plus_hf
+        features["LF/HF Ratio"] = features["LF"] / features["HF"] if features["HF"] > 0 else 0
+        features["LFnu"] = (features["LF"] / lf_plus_hf) * 100 if lf_plus_hf > 0 else 0
+        features["HFnu"] = (features["HF"] / lf_plus_hf) * 100 if lf_plus_hf > 0 else 0
+
+        # --- Find Peak Frequency in LF and HF bands ---
+        if np.any(lf_band) and np.any(pxx[lf_band]):
+            lf_peak_idx = np.argmax(pxx[lf_band])
+            features["LF Peak Freq (Hz)"] = fxx[lf_band][lf_peak_idx]
+        else:
+            features["LF Peak Freq (Hz)"] = 0
+
+        if np.any(hf_band) and np.any(pxx[hf_band]):
+            hf_peak_idx = np.argmax(pxx[hf_band])
+            features["HF Peak Freq (Hz)"] = fxx[hf_band][hf_peak_idx]
+        else:
+            features["HF Peak Freq (Hz)"] = 0
+
+        return features
+
+    def get_features(self):
+        """Compute and return all frequency domain features."""
+        freq, psd = self.compute_psd()
+        if freq.size == 0 or psd.size == 0:
+            return {}
+        return self.calculate_freq_domain_features(freq, psd)
 
 class NonLinearDomain:
     """Container for nonlinear HRV features (entropy, Poincaré, etc.)."""
@@ -254,13 +294,9 @@ class HRV:
     def compute_all(self):
         return {
             "time_domain": self.time.get_features(),
+            "frequency_domain": self.freq.get_features(),
             "nonlinear_domain": self.non_linear.compute_all()
         }
-        
-    # def classify_stress(self):
-    #     """Classify stress level based on HRV features."""
-    #     features = self.compute_all()
-    #     return self.classifier.classify_multi_feature(features)
 
     def print_time_features(self):
         feats = self.time.get_features()
@@ -268,22 +304,17 @@ class HRV:
         for key, val in feats.items():
             print(f"{key}: {val:.4f}" if isinstance(val, (float, np.floating)) else f"{key}: {val}")
     
-    # def print_frequency_features(self):
-    #     freq, psd = self.freq.compute_psd()
-    #     print("HRV Frequency Domain Features:")
-    #     if freq.size > 0 and psd.size > 0:
-    #         for f, p in zip(freq, psd):
-    #             print(f"Frequency: {f:.4f} Hz, PSD: {p:.4f}")
-    #     else:
-    #         print("Not enough RR intervals to compute frequency domain features.")
-            
+    def print_frequency_features(self):
+            features = self.freq.get_features()
+            print("\n=== HRV Frequency Domain Features ===")
+            if features:
+                for key, value in features.items():
+                    print(f"{key}: {value:.4f}" if not np.isnan(value) else f"{key}: N/A")
+            else:
+                print("Not enough RR intervals to compute frequency domain features.")
+                        
     def print_nonlinear_features(self):
         features = self.non_linear.compute_all()
         print("\n=== HRV Nonlinear Features ===")
         for key, value in features.items():
             print(f"{key}: {value:.4f}" if not np.isnan(value) else f"{key}: N/A")
-            
-    # def print_classification(self):
-    #     """Print stress classification."""
-    #     result = self.classify_stress()
-    #     self.classifier.print_classification(result)
