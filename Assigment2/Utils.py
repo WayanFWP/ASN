@@ -40,7 +40,7 @@ def HPF(signal,fh,fs):
 
 def pan_tompkins(ecg, fs):
     # 1) Bandpass filter between 5-15 Hz
-    filtered = bandpass_filter(ecg, 5, 11, fs)
+    filtered = bandpass_filter(ecg, 5, 15, fs)
     T = 1 / fs
     
     # 2) Derivative filter (5-point derivative)
@@ -114,14 +114,25 @@ def cwt(signal, fs, scales):
     return cwt_matrix, frequencies
 
 def cwt_analysis(pcg_segment, fs):
-    if len(pcg_segment) == 0: return None, None, None
-    MIN_SCALE_SEC, MAX_SCALE_SEC = 0.002, 0.1
+    if len(pcg_segment) == 0: 
+        return None, None, None
+    
+    # Adjust scale range based on signal length
+    segment_duration = len(pcg_segment) / fs
+    MAX_SCALE_SEC = min(0.1, segment_duration / 20)  # Limit max scale
+    MIN_SCALE_SEC = 0.002
+    
     total_scales = 128
     scales_a = np.logspace(np.log10(MIN_SCALE_SEC), np.log10(MAX_SCALE_SEC), num=total_scales)
     coefficients, frequencies = cwt(pcg_segment, fs, scales_a)
-    time_axis_segment = np.arange(len(pcg_segment)) / fs
+    
+    # Create time axis relative to center (R-peak position)
+    # Assuming R-peak is at the center of the segment
+    n_samples = len(pcg_segment)
+    center_sample = n_samples // 2
+    time_axis_segment = (np.arange(n_samples) - center_sample) / fs
+    
     return coefficients, frequencies, time_axis_segment
-
 
 def windowing(method, n_per_seg):
     if method == "hanning":
@@ -134,34 +145,44 @@ def windowing(method, n_per_seg):
         window = np.ones(n_per_seg)  # Rectangular window
     return window
 
-
-def stft_analysis(pcg_segment, fs, window_length_ms, overlap_pct):
-    if len(pcg_segment) == 0: return None, None, None
-    n_per_seg = int(window_length_ms / 1000 * fs)
-    n_overlap = int(n_per_seg * (overlap_pct / 100))
-    hop_length = n_per_seg - n_overlap
-
-    window = windowing("hanning", n_per_seg)
+def stft(x, window_size, hop_size, window='hann'):
+    # Input validation
+    if len(x) < window_size:
+        raise ValueError("Signal length must be at least window size")
     
-    stft_frames = []
-    num_frames = 1 + int(np.floor((len(pcg_segment) - n_per_seg) / hop_length))
-    n_fft = 0
-    for i in range(num_frames):
-        start_index = i * hop_length
-        end_index = start_index + n_per_seg
-        frame = pcg_segment[start_index:end_index]
-        if len(frame) < n_per_seg:
-            frame = np.pad(frame, (0, n_per_seg - len(frame)), 'constant', constant_values=0)
-        windowed_frame = frame * window
-        fft_result = np.fft.fft(windowed_frame)
-        if i == 0: n_fft = len(fft_result)
-        magnitude = np.abs(fft_result)[:n_fft // 2]
-        stft_frames.append(magnitude)
-    if not stft_frames: return None, None, None
-    spectrogram = np.array(stft_frames).T
-    freqs = np.fft.fftfreq(n_fft, d=1/fs)[:n_fft // 2]
-    times = np.arange(num_frames) * hop_length / fs
-    return freqs, times, spectrogram
+    if hop_size <= 0 or hop_size > window_size:
+        raise ValueError("Hop size must be between 1 and window size")
+    
+    window_func = windowing(method=window, n_per_seg=window_size)
+    
+    # Normalize window to preserve energy
+    window_func = window_func / np.sqrt(np.sum(window_func**2))
+    
+    # Calculate number of frames
+    num_frames = 1 + (len(x) - window_size) // hop_size
+    
+    # Initialize STFT matrix
+    stft_matrix = np.zeros((window_size, num_frames), dtype=complex)
+    
+    # Compute STFT for each frame
+    for frame_idx in range(num_frames):
+        # Extract segment
+        start_idx = frame_idx * hop_size
+        end_idx = start_idx + window_size
+        segment = x[start_idx:end_idx]
+        
+        # Apply window
+        windowed_segment = segment * window_func
+        
+        # Compute FFT
+        stft_matrix[:, frame_idx] = np.fft.fft(windowed_segment)
+    
+    # Calculate frequency and time arrays
+    frequencies = np.fft.fftfreq(window_size)
+    time_frames = np.arange(num_frames) * hop_size
+    
+    return stft_matrix, frequencies, time_frames
+    
 
 def compute_cog(mask_blob, times, scales, E):
         Em = E * mask_blob
@@ -187,20 +208,20 @@ def flood_fill(si, ti, label, mask, labels, S, T):
         stack.append((i, j-1))
         stack.append((i, j+1))
 
-
 def detect_s1_s2(coeff, scales, times, f0_delphi=0.849, thresh_s1=0.6, thresh_s2=0.15):
     E = np.abs(coeff)**2
     S, T = E.shape
-
-    energy_time = np.sum(E, axis=0)
-    t_peak1 = times[np.argmax(energy_time)]
-    time_boundary = t_peak1 + 0.3     
+        
+    s1_start = -0.1  
+    s1_end = 0.2        
+    s2_start = 0.2        
+    s2_end = 0.4        
     
     thr_s1 = thresh_s1 * np.max(E)
     thr_s2 = thresh_s2 * np.max(E)
 
-    mask_s1 = (E > thr_s1) & (times[None, :] < time_boundary)
-    mask_s2 = (E > thr_s2) & (times[None, :] >= time_boundary)
+    mask_s1 = (E > thr_s1) & (times[None, :] >= s1_start) & (times[None, :] < s1_end)
+    mask_s2 = (E > thr_s2) & (times[None, :] >= s2_start) & (times[None, :] < s2_end)
 
     mask = mask_s1 | mask_s2
     labels = np.zeros_like(mask, dtype=int)
@@ -212,8 +233,8 @@ def detect_s1_s2(coeff, scales, times, f0_delphi=0.849, thresh_s1=0.6, thresh_s2
                 current_label += 1
                 flood_fill(i, j, current_label, mask, labels, S, T)
 
-    if current_label < 2:
-        print("Warning: fewer than 2 heart sound regions.")
+    if current_label < 1:
+        print("Warning: No heart sound regions detected.")
         return None
     
     regions = []
@@ -224,17 +245,51 @@ def detect_s1_s2(coeff, scales, times, f0_delphi=0.849, thresh_s1=0.6, thresh_s2
         if np.sum(E_t) == 0:
             continue
         t_c = np.sum(times * E_t) / np.sum(E_t)
-        regions.append((t_c, lab))
+        
+        if s1_start <= t_c < s1_end:
+            region_type = 'S1'
+        elif s2_start <= t_c < s2_end:
+            region_type = 'S2'
+        else:
+            region_type = 'Unknown'
+            
+        regions.append((t_c, lab, region_type))
 
     regions.sort(key=lambda x: x[0])
-    label_s1 = regions[0][1]
+    
+    s1_region = None
+    s2_region = None
+    
+    for t_c, lab, region_type in regions:
+        if region_type == 'S1' and s1_region is None:
+            s1_region = (t_c, lab)
+        elif region_type == 'S2' and s2_region is None:
+            s2_region = (t_c, lab)
+    
+    if s1_region is None:
+        print("Warning: No S1 region detected in expected time window")
+        return None
+    
+    # Process S1
+    label_s1 = s1_region[1]
     S1_mask = (labels == label_s1)
     
-    t_s1, s_s1 = compute_cog(S1_mask, times, scales, E)
-    f_s1 = f0_delphi / s_s1
+    # Use 1/scales for consistent coordinate system with plotting
+    scales_plot = 1/scales  # Convert to plotting coordinates
+    t_s1, scale_plot_s1 = compute_cog(S1_mask, times, scales_plot, E)
+    
+    # Calculate actual frequency from the plotting scale
+    f_s1 = 1 / scale_plot_s1
 
-    label_s2 = regions[1][1]
-    S2_mask = (labels == label_s2)
-    t_s2, s_s2 = compute_cog(S2_mask, times, scales, E)
-    f_s2 = f0_delphi / s_s2
-    return (t_s1, f_s1, S1_mask), (t_s2, f_s2, S2_mask), E
+    if s2_region is not None:
+        label_s2 = s2_region[1]
+        S2_mask = (labels == label_s2)
+        t_s2, scale_plot_s2 = compute_cog(S2_mask, times, scales_plot, E)
+        f_s2 = 1 / scale_plot_s2
+        
+        print(f"Detected both S1 and S2")
+        # Return plotting scale coordinates directly
+        return (t_s1, scale_plot_s1, S1_mask), (t_s2, scale_plot_s2, S2_mask), E
+    else:
+        print(f"Only S1 detected, no S2 found in expected time window")
+        return (t_s1, scale_plot_s1, S1_mask), None, E

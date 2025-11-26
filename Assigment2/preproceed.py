@@ -3,7 +3,7 @@ import pandas as pd
 import wfdb
 import matplotlib.pyplot as plt
 
-namefile = "a0014"
+namefile = "a0042"
 args = "dat/raw/"+namefile
 data = wfdb.rdrecord(args)
 
