@@ -1,5 +1,6 @@
 import numpy as np
 import ctypes
+import matplotlib.pyplot as plt
 
 class Complex128(ctypes.Structure):
     _fields_ = [("real", ctypes.c_double),
@@ -30,8 +31,25 @@ def downSample(x, M):
     if M <= 0:
         raise ValueError("Downsampling factor M must be positive.")
     
-    # y[n] = x[nM]
-    y = np.array([x[n * M] for n in range(len(x) // M)])
+    # # y[n] = x[nM]
+    # y = np.array([x[n * M] for n in range(len(x) // M)])
+    # return y
+    
+    arr = np.asarray(x)
+    
+    # If M is integer (or very close), use fast decimation by indexing
+    if float(M).is_integer():
+        M_int = int(M)
+        if M_int == 1:
+            return arr.copy()
+        return arr[::M_int]
+    
+    # For non-integer M (float), perform linear resampling:
+    # new_length = floor(len(x) / M)  (if M>1 -> downsample, if 0<M<1 -> upsample)
+    new_len = max(1, int(np.floor(len(arr) / float(M))))
+    old_pos = np.arange(len(arr))
+    new_pos = np.linspace(0, len(arr) - 1, new_len)
+    y = np.interp(new_pos, old_pos, arr).astype(arr.dtype)
     return y
 
 def convolve(x, h):
@@ -71,3 +89,25 @@ def FFT(sig, fs):
     magnitude = np.abs(result[:N//2]) / (N/2)
     freq = np.arange(N//2) * fs / N
     return magnitude, freq
+
+from scipy.signal import butter, filtfilt
+
+def BPF(x, fc, fh, fs):
+    nyqs = fs / 2
+    low = fc / nyqs 
+    high = min(fh, nyqs - 1) / nyqs
+
+    b, a = butter(4, [low, high], btype='band')
+    return filtfilt(b, a, x)
+
+def triangle(t, a, k, b, Y):
+    q = np.zeros_like(t)
+    left_mask = (t >= t[a]) & (t <= t[k])
+    right_mask = (t >= t[k]) & (t <= t[b])
+
+    if t[k] != t[a]:
+        q[left_mask] = Y * (t[left_mask] - t[a]) / (t[k] - t[a])
+    if t[b] != t[k]:
+        q[right_mask] = Y * (t[b] - t[right_mask]) / (t[b] - t[k])
+    return q
+
