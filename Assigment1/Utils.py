@@ -1,6 +1,5 @@
 import numpy as np
 import ctypes
-import matplotlib.pyplot as plt
 
 class Complex128(ctypes.Structure):
     _fields_ = [("real", ctypes.c_double),
