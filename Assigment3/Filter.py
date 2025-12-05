@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from utils import *
 
 class Filter:
@@ -24,6 +25,10 @@ class Filter:
             -0.0328830116668852,
             -0.0105974017850021
         ])
+        
+        self.dwt = DWT(fs)
+        self.dwt.initialize_qj_filter()
+        self.dwt.plot_filter_responses()
         
     def LPF(self, signal, cutoff):
         N = len(signal)
@@ -106,7 +111,7 @@ class Filter:
         frequencies = F / scales
         return cwt_matrix, frequencies
 
-    def cwt_analysis(self, segmented_signals, percentage_keep=99):
+    def cwt_analysis(self, segmented_signals, percentage_keep=1):
         if len(segmented_signals) == 0: 
             return None, None, None
         
@@ -123,6 +128,62 @@ class Filter:
         time_axis_segment = (np.arange(n_samples) - center_sample) / self.fs
         
         return coefficients, frequencies, time_axis_segment
+    
+    def windowing(self, method, n_per_seg):
+        if method == "hanning":
+            window = 0.5 - 0.5 * np.cos(2 * np.pi * np.arange(n_per_seg) / (n_per_seg - 1))  # Hanning window
+        elif method == "hamming":
+            window = 0.54 - 0.46 * np.cos(2 * np.pi * np.arange(n_per_seg) / (n_per_seg - 1))  # Hamming window
+        elif method == "triangular":
+            window = 1 - abs(2 * np.arange(n_per_seg) - (n_per_seg + 1)) / (n_per_seg - 1)  # Triangular window
+        else:
+            window = np.ones(n_per_seg)  # Rectangular window
+        return window
+
+    def stft(self, x, window_size, hop_size, window='hann', percentage=None):
+        # Input validation
+        if len(x) < window_size:
+            raise ValueError("Signal length must be at least window size")
+        
+        if hop_size <= 0 or hop_size > window_size:
+            raise ValueError("Hop size must be between 1 and window size")
+        
+        window_func = self.windowing(method=window, n_per_seg=window_size)
+        
+        # Normalize window to preserve energy
+        window_func = window_func / np.sqrt(np.sum(window_func**2))
+        
+        # Calculate number of frames
+        num_frames = 1 + (len(x) - window_size) // hop_size
+        
+        # Initialize STFT matrix
+        stft_matrix = np.zeros((window_size, num_frames), dtype=complex)
+        
+        # Compute STFT for each frame
+        for frame_idx in range(num_frames):
+            # Extract segment
+            start_idx = frame_idx * hop_size
+            end_idx = start_idx + window_size
+            segment = x[start_idx:end_idx]
+            
+            # Apply window
+            windowed_segment = segment * window_func
+            
+            # Compute FFT
+            stft_matrix[:, frame_idx] = np.fft.fft(windowed_segment)
+            
+        if percentage is not None:
+            # Apply percentage thresholding
+            magnitude = np.abs(stft_matrix)
+            threshold = np.percentile(magnitude, 100 * (1 - percentage))
+            stft_matrix[magnitude < threshold] = 0
+        
+        # Calculate frequency and time arrays
+        frequencies = np.fft.fftfreq(window_size)
+        time_frames = np.arange(num_frames) * hop_size
+        
+        return stft_matrix, frequencies, time_frames
+        
         
         
 class DWT:
@@ -144,11 +205,6 @@ class DWT:
         return self.a, self.b        
 
     def initialize_qj_filter(self):
-        # Only print if not in GUI mode
-        if not self.gui_mode:
-            print("Initializing QJ filters using frequency domain approach...")
-        
-        
         j = 1
         a , b = self.getAnBvalues(j)
         k_index1 = []
@@ -304,7 +360,7 @@ class DWT:
             
     def store_filter_responses(self):
         """Store filter responses for later plotting"""
-        fs = self.original_fs
+        fs = self.fs
         if fs is None:
             raise ValueError("Sampling frequency (fs) must be set to store filter responses.")
         n_points = 2048  # Use more points for smoother curves
@@ -363,8 +419,19 @@ class DWT:
         if specific_j is not None:
             # Get the actual filter coefficients (non-zero part)
             qj_filter = self.qj[specific_j]
-            conv_result = np.convolve(signal, qj_filter)
-               
+            
+            # Remove zeros from the filter to get the actual filter length
+            non_zero_indices = np.where(qj_filter != 0)[0]
+            if len(non_zero_indices) > 0:
+                start_idx = non_zero_indices[0]
+                end_idx = non_zero_indices[-1] + 1
+                actual_filter = qj_filter[start_idx:end_idx]
+            else:
+                actual_filter = qj_filter
+            
+            # Use 'same' mode to maintain the same length as input signal
+            conv_result = np.convolve(signal, actual_filter, mode='same')
+            
             coeffs[specific_j] = conv_result
         return coeffs
     
@@ -372,14 +439,12 @@ class DWT:
         """Plot filter responses in the provided figure"""
         if not self.frequency_responses:
             self.store_filter_responses()
-        
+            
         if fig is None:
-            # Only create new figure if not in GUI mode
-            if not self.gui_mode:
-                fig = plt.figure(figsize=(12, 8))
-            else:
-                return None
-        
+            fig = plt.figure(figsize=(10, 6))
+            should_show = True
+        else:
+            should_show = False
         ax = fig.add_subplot(111)
         
         freq_axis = self.frequency_responses['freq_axis']
@@ -405,7 +470,11 @@ class DWT:
         ax.set_title("DWT Filter Bank Frequency Responses")
         ax.legend()
         ax.grid(True, alpha=0.3)
-        ax.set_xlim(0, self.original_fs/2 if self.original_fs else self.fs/2)
+        ax.set_xlim(0, self.fs/2)
         ax.set_ylim(0, 1.1)
+
+        if should_show:
+            plt.tight_layout()
+            plt.show()
         
         return fig
