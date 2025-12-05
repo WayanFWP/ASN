@@ -1,4 +1,5 @@
 refrence
 __pycache__
-
-data
+*.vscode
+**/data/raw
+**/dat/raw
