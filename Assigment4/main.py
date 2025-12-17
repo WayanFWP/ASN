@@ -1,27 +1,19 @@
 from Utils import *
 from preproceed import *
 from Plot import *
+from Analyzer import Analyzer
 import matplotlib.pyplot as plt
 import numpy as np
 
-preprocess = dataLoader("B0101T")
+preprocess = dataLoader("B0102T")
+data_analyzer = Analyzer(fs=preprocess.fs)
 data, labels = preprocess.X, preprocess.y
 print(f"Data shape: {data.shape}")  # (n_trials, n_channels, n_samples)
 
-baseline_data = np.zeros_like(data)
-for i in range(data.shape[0]):
-    for j in range(data.shape[1]):
-        baseline_data[i, j, :] = BPF(data[i, j, :], fs=preprocess.fs)
-print("BandPass Filter Applied")
+data_analyzer.run(data)
+plot2Signal(data_analyzer.erd_data, data_analyzer.ers_data, fs=preprocess.fs, label1='ERD Band (8-11 Hz)', label2='ERS Band (26-30 Hz)')
 
-# ===== ERD/ERS ANALYSIS =====
-# Squaring (Power)
-squared_data = squaring(baseline_data)
-print("Squaring Applied")
 
-# Moving Average (Smoothing)
-averaged_data = np.zeros_like(squared_data)
-for i in range(squared_data.shape[0]):
-    for j in range(squared_data.shape[1]):
-        averaged_data[i, j, :] = avaragingOverN(squared_data[i, j, :], N=10)
-print("Averaging Over N Applied")
+data_analyzer.baselineNormalization(start=0, end=int(preprocess.fs * 1.0)) 
+data_analyzer.motorImagery(start=int(preprocess.fs * 1.0), end=int(preprocess.fs * 5.0))
+
