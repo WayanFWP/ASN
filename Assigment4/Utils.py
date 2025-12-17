@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 
 def LPF(signal, cutoff, fs):
     N = len(signal)
@@ -13,7 +12,9 @@ def LPF(signal, cutoff, fs):
     a1 = 2 * Wc**2 / denom
     a2 = a0
     y = np.zeros(N)
-    for n in range(2, N-2):
+    y[0] = signal[0]
+    y[1] = signal[1]
+    for n in range(2, N-1):
         y[n] = (b1 * y[n-1]) - (b2 * y[n-2]) + (a0 * signal[n]) + (a1 * signal[n-1]) + (a2 * signal[n-2])
     return y
 
@@ -29,7 +30,9 @@ def HPF(signal, cutoff, fs):
     a1 = (-8/T**2) / denom
     a2 = a0
     y = np.zeros(N)
-    for n in range(0, N-1):
+    y[0] = signal[0]
+    y[1] = signal[1]
+    for n in range(2, N-1):
         y[n] = (b1 * y[n-1]) - (b2 * y[n-2]) + (a0 * signal[n]) + (a1 * signal[n-1]) + (a2 * signal[n-2])
     return y
 
@@ -41,4 +44,9 @@ def BPF(signal, lowcut=0.5, highcut=30, fs=250):
 def squaring(signal):
     return signal ** 2
 
-def averagingPower
+def avaragingOverN(signal, N=10):
+    N = int(N)
+    kernel = np.ones(N) / N
+    padded_signal = np.pad(signal, (N-1, 0), mode='edge')
+    averaged_signal = np.convolve(padded_signal, kernel, mode='valid')
+    return averaged_signal
