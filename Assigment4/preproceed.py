@@ -1,3 +1,5 @@
+import os
+import tempfile
 import mne
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,8 +9,33 @@ feature_data = ["EEG:C3", "EEG:Cz", "EEG:C4"]
 class dataLoader:
     def __init__(self, data):
         self.fs = 250
-        self.raw = mne.io.read_raw_gdf(f"./data/raw/{data}.gdf", preload=True)
+
+        if data is None:
+            raise ValueError("No EEG data provided")
+
+        if hasattr(data, "read"):
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".gdf") as tmp:
+                tmp.write(data.read())
+                gdf_path = tmp.name
+
+        elif isinstance(data, str):
+            if data.endswith(".gdf"):
+                # full or relative path
+                gdf_path = data
+            else:
+                # dataset name → map to folder
+                gdf_path = f"./data/raw/{data}.gdf"
+
+            if not os.path.exists(gdf_path):
+                raise FileNotFoundError(f"{gdf_path} not found")
+
+        else:
+            raise TypeError("Unsupported input type for dataLoader")
+
+        # Load EEG
+        self.raw = mne.io.read_raw_gdf(gdf_path, preload=True)
         self.X, self.y = self.load_data()
+
         # self.debug()
 
     def load_data(self):
@@ -21,8 +48,8 @@ class dataLoader:
         self.raw,
         events,
         event_id=event_id,
-        tmin=-1.0,
-        tmax=4.0,
+        tmin=-4.0,
+        tmax=3.0,
         baseline=(-1.0, 0.0),
         preload=True,
         reject_by_annotation=True
