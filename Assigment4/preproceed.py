@@ -21,10 +21,8 @@ class dataLoader:
 
         elif isinstance(data, str):
             if data.endswith(".gdf"):
-                # full or relative path
                 gdf_path = data
             else:
-                # dataset name → map to folder
                 gdf_path = f"./data/raw/{data}.gdf"
 
             if not os.path.exists(gdf_path):
@@ -33,7 +31,6 @@ class dataLoader:
         else:
             raise TypeError("Unsupported input type for dataLoader")
 
-        # Load EEG
         self.raw = mne.io.read_raw_gdf(gdf_path, preload=True)
         self.info = self.raw.info
         self.X, self.y = self.load_data()
@@ -43,7 +40,6 @@ class dataLoader:
     def load_data(self):
         self.raw.pick_channels(feature_data)
         
-        # Rename channels to match standard montage (remove "EEG:" prefix)
         channel_mapping = {
             'EEG:C3': 'C3',
             'EEG:Cz': 'Cz',
@@ -51,12 +47,9 @@ class dataLoader:
         }
         self.raw.rename_channels(channel_mapping)
         
-        # Set standard montage for electrode positions
         montage = mne.channels.make_standard_montage('standard_1005')
         self.raw.set_montage(montage, on_missing='ignore')
-        
-        self.raw.filter(8., 30., fir_design='firwin', skip_by_annotation='edge')
-        
+                
         self.raw.compute_psd()
         
         events, event_id = self.labeling(self.data_type)

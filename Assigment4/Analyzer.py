@@ -140,7 +140,9 @@ class Analyzer:
         
         erd_var = np.var(erd[:, :, start:end], axis=2)
         ers_var = np.var(ers[:, :, start:end], axis=2)
-        
+        erd_var = np.log(erd_var + 1e-8)
+        ers_var = np.log(ers_var + 1e-8)
+
         erd_std = np.std(erd[:, :, start:end], axis=2)
         ers_std = np.std(ers[:, :, start:end], axis=2)
         
@@ -154,7 +156,7 @@ class Analyzer:
         erd_diff = erd_mean[:, 0] - erd_mean[:, 2]
         ers_diff = ers_mean[:, 0] - ers_mean[:, 2]
         
-        self.features = np.column_stack([
+        features = np.column_stack([
             # Alpha features (all channels)
             erd_mean[:, 0], erd_mean[:, 1], erd_mean[:, 2],  # mean per channel
             erd_var[:, 0],  erd_var[:, 1],  erd_var[:, 2],   # variance
@@ -173,8 +175,14 @@ class Analyzer:
             erd_diff,  # C3-C4 alpha
             ers_diff   # C3-C4 beta
         ])
-
-        print(f"MI Features shape: {self.features.shape}")
-        print(f"Total features: {self.features.shape[1]}")
         
-        return self.features   
+        selected_features = np.column_stack([
+            erd_mean[:, 0], erd_mean[:, 1], erd_mean[:, 2],  # mean per channel
+            erd_var[:, 0],  erd_var[:, 1],  erd_var[:, 2],   # variance
+            ers_mean[:, 0], ers_mean[:, 1], ers_mean[:, 2],
+            ers_var[:, 0],  ers_var[:, 1],  ers_var[:, 2],
+            erd_diff,  # C3-C4 alpha
+            ers_diff   # C3-C4 beta
+        ])
+        
+        return features, selected_features   

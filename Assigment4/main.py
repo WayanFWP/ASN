@@ -2,63 +2,94 @@ from Utils import *
 from preproceed import *
 from Plot import *
 from Analyzer import Analyzer
-from CSP import *
+from CSP import CSP
 import matplotlib.pyplot as plt
+import mne
 
-# Load data
-preprocess = dataLoader("B0102T")
-data, labels = preprocess.X, preprocess.y # data shape: (n_trials, n_channels, n_times), labels shape: (n_trials,)
-print(f"Data shape: {data.shape}")
-data
+data_list = ["B0101T", "B0102T", "B0103T"]
 
-# Run pipeline
-data_analyzer = Analyzer(fs=preprocess.fs)
-data_analyzer.run(data, remove_erp=True)
+X_all, y_all = [], []
+info = None
 
-# define baseline (example: -1s to 0s)
-baseline_start = int(0.0 * preprocess.fs)
-baseline_end   = int(1.0 * preprocess.fs)
+for d in data_list:
+    pre = dataLoader(d)
+    X_all.append(pre.X)
+    y_all.append(pre.y)
+    info = pre.info  
 
-data_analyzer.apply_baseline(baseline_start, baseline_end)
-data_analyzer.apply_spatial_filter(method='laplacian')
+data   = np.concatenate(X_all, axis=0)
+labels = np.concatenate(y_all, axis=0)
 
-# CWT
-cwt_alpha, freq_alpha, time_alpha = cwt_analysis(data_analyzer.erd_bandpassed[0,:,:], fs=preprocess.fs)
-cwt_beta, freq_beta, time_beta = cwt_analysis(data_analyzer.ers_bandpassed[0,:,:], fs=preprocess.fs)
+fs = pre.fs
+print("Data:", data.shape, "Labels:", labels.shape)
 
-# CSP pipeline
+X_bp = np.zeros_like(data)
+# Apply bandpass filter to each trial and channel
+for t in range(data.shape[0]):
+    for c in range(data.shape[1]):
+        X_bp[t, c, :] = BPF(
+            data[t, c, :])
+        
+csp = CSP(n_components=6)
+X_csp = csp.fit_transform(data, labels)
+X_test_CSP = csp.transform(data)
 
-# # Plot ERD/ERS
-# fig = merge2Signals(
-#     data_analyzer.alpha_percent,  
-#     data_analyzer.beta_percent,   
-#     fs=preprocess.fs,
-#     label1="Alpha ERD (%) - Laplacian",
-#     label2="Beta ERS (%) - Laplacian"
-# )
+erp_analyzer = Analyzer(fs=fs)
+erp_analyzer.run(data)
+erp_analyzer.apply_baseline(int(0*fs), int(1*fs))
+erp_analyzer.apply_spatial_filter("laplacian")
 
-# figs = plot2Signal(
-#     data_analyzer.alpha_percent,
-#     data_analyzer.beta_percent, 
-#     fs=preprocess.fs,
-#     label1="Alpha ERD (%) - Laplacian",
-#     label2="Beta ERS (%) - Laplacian",
-# )
+_, X_erp = erp_analyzer.motorImagery(int(1*fs), int(3*fs))
+_ , X_test_ERP = erp_analyzer.motorImagery(int(1*fs), int(3*fs))
 
-# fig2 = plot_topographic_map(
-#     data_analyzer.alpha_percent,
-#     fs=preprocess.fs,
-#     time_points=[0, 1, 2, 3],
-#     title="Alpha ERD Topography (Laplacian)"
-# )
+X = np.hstack((X_csp, X_erp))
+X_test = np.hstack((X_test_CSP, X_test_ERP))
 
-# plot_combined_scalograms(cwt_alpha, freq_alpha, time_alpha, cwt_beta, freq_beta, time_beta)
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+from sklearn.model_selection import train_test_split
 
-mi_start = int(5.0 * preprocess.fs)  # 1s after cue at t=4s
-mi_end   = int(7.0 * preprocess.fs)  # 3s after cue
+X_train, X_test, y_train, y_test = train_test_split(X, labels, test_size=0.2, random_state=42, stratify=labels)
 
-features = data_analyzer.motorImagery(mi_start, mi_end)
-print(f"Extracted {features.shape[1]} features from {features.shape[0]} trials")
+LDA = LinearDiscriminantAnalysis()
+LDA.fit(X_train, y_train)
 
+y_pred = LDA.predict(X_test)
+
+print("\nAccuracy:", accuracy_score(y_test, y_pred))
+print("\nConfusion Matrix:")
+print(confusion_matrix(y_test, y_pred))
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred))
+
+# ======================
+# VISUALIZE CSP PATTERNS
+# ======================
+# 1. Topographic map using MNE
+m = csp.n_components // 2  # patterns per class
+selected_patterns = np.hstack([
+    csp.patterns_[:, :m],      # First m patterns (class 1)
+    csp.patterns_[:, -m:]      # Last m patterns (class 2)
+])
+
+# Create evoked object for topomap plotting
+# Use sampling frequency from info
+sfreq = info['sfreq']
+evoked = mne.EvokedArray(selected_patterns, info, tmin=0, nave=1)
+
+# Plot topomaps
+fig2, axes = plt.subplots(1, csp.n_components, figsize=(12, 3))
+for idx in range(csp.n_components):
+    # Convert index to time value
+    time_point = idx / sfreq
+    evoked.plot_topomap(
+        times=[time_point], 
+        axes=axes[idx] if csp.n_components > 1 else axes,
+        show=False,
+        colorbar=False,
+        time_format=f'CSP Pattern {idx+1}'
+    )
+
+plt.suptitle('CSP Spatial Patterns (Topographic Maps)', fontsize=14, y=1.02)
+plt.tight_layout()
 plt.show()
-
