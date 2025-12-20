@@ -8,7 +8,7 @@ class Analyzer:
         self.alpha_power    = None
         self.beta_power     = None
         self.data           = None
-        
+                
         self.erd_bandpassed = None
         self.ers_bandpassed = None
         self.erd_squared    = None
@@ -18,9 +18,6 @@ class Analyzer:
                 
         self.alpha_percent  = None
         self.beta_percent   = None
-
-        self.refrence_free_alpha = None
-        self.refrence_free_beta  = None
         
         self.window_size = 100
         
@@ -89,30 +86,12 @@ class Analyzer:
             self.beta_power, baseline_start, baseline_end
         )
 
-    
     # using the period before the cue as reference
     # equation: (A - R) / R * 100%
     def ERD_ERS(self, power, baseline_start, baseline_end):
         R = np.mean(power[:, :, baseline_start:baseline_end],
                     axis=2, keepdims=True)
         return (power - R) / R * 100
-                    
-    def motorImagery(self, start, end):
-        erd = self.alpha
-        ers = self.beta
-
-        erd_mean = np.mean(erd[:, :, start:end], axis=2)
-        ers_mean = np.mean(ers[:, :, start:end], axis=2)
-
-        erd_diff = erd_mean[:, 0] - erd_mean[:, 2]  # C3 - C4
-        ers_diff = ers_mean[:, 0] - ers_mean[:, 2]
-
-        self.features = np.column_stack([
-            erd_diff,
-            ers_diff
-        ])
-
-        print("MI Features shape:", self.features.shape)
         
     def compute_common_average_reference(self, data):
         return data - np.mean(data, axis=1, keepdims=True)
@@ -150,3 +129,52 @@ class Analyzer:
         
         else:
             raise ValueError("Method must be 'car' or 'laplacian'")
+                                 
+    def motorImagery(self, start, end):
+        erd = self.alpha
+        ers = self.beta
+
+        # Time-domain features
+        erd_mean = np.mean(erd[:, :, start:end], axis=2) 
+        ers_mean = np.mean(ers[:, :, start:end], axis=2)
+        
+        erd_var = np.var(erd[:, :, start:end], axis=2)
+        ers_var = np.var(ers[:, :, start:end], axis=2)
+        
+        erd_std = np.std(erd[:, :, start:end], axis=2)
+        ers_std = np.std(ers[:, :, start:end], axis=2)
+        
+        erd_max = np.max(erd[:, :, start:end], axis=2)
+        ers_max = np.max(ers[:, :, start:end], axis=2)
+        
+        erd_min = np.min(erd[:, :, start:end], axis=2)
+        ers_min = np.min(ers[:, :, start:end], axis=2)
+
+        # Spatial differences (C3 - C4)
+        erd_diff = erd_mean[:, 0] - erd_mean[:, 2]
+        ers_diff = ers_mean[:, 0] - ers_mean[:, 2]
+        
+        self.features = np.column_stack([
+            # Alpha features (all channels)
+            erd_mean[:, 0], erd_mean[:, 1], erd_mean[:, 2],  # mean per channel
+            erd_var[:, 0],  erd_var[:, 1],  erd_var[:, 2],   # variance
+            erd_std[:, 0],  erd_std[:, 1],  erd_std[:, 2],   # std dev
+            erd_max[:, 0],  erd_max[:, 1],  erd_max[:, 2],   # max
+            erd_min[:, 0],  erd_min[:, 1],  erd_min[:, 2],   # min
+            
+            # Beta features (all channels)
+            ers_mean[:, 0], ers_mean[:, 1], ers_mean[:, 2],
+            ers_var[:, 0],  ers_var[:, 1],  ers_var[:, 2],
+            ers_std[:, 0],  ers_std[:, 1],  ers_std[:, 2],
+            ers_max[:, 0],  ers_max[:, 1],  ers_max[:, 2],
+            ers_min[:, 0],  ers_min[:, 1],  ers_min[:, 2],
+            
+            # Spatial contrasts
+            erd_diff,  # C3-C4 alpha
+            ers_diff   # C3-C4 beta
+        ])
+
+        print(f"MI Features shape: {self.features.shape}")
+        print(f"Total features: {self.features.shape[1]}")
+        
+        return self.features   

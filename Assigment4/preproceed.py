@@ -90,6 +90,3 @@ class dataLoader:
         }
         return events, event_id_new
         
-    
-    def trial(self):
-        pass

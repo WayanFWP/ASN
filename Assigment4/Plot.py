@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from preproceed import feature_data
+from Utils import norm
 
 def plotSignal(signal, fs):
     fig, axes = plt.subplots(3, 1, figsize=(12, 6), sharex=True)
@@ -66,15 +67,6 @@ def merge2Signals(signal1, signal2, fs, label1='Signal 1', label2='Signal 2', un
 
 
 def plot_topographic_map(data, fs, time_points, title="ERD/ERS Topography"):
-    """
-    Plot topographic maps at specific time points.
-    
-    Parameters:
-    -----------
-    data : ndarray (n_trials, n_channels, n_times)
-    fs : int, sampling frequency
-    time_points : list of time points in seconds (e.g., [0, 1, 2])
-    """
     import matplotlib.patches as patches
     
     # Average across trials
@@ -120,5 +112,56 @@ def plot_topographic_map(data, fs, time_points, title="ERD/ERS Topography"):
         ax.axis('off')
     
     fig.suptitle(title)
+    plt.tight_layout()
+    return fig
+
+def plot_combined_scalograms(cwt_signal1, freq1, time_signal1, 
+                            cwt_signal2, freq2, time_signal2,
+                            segment_idx=0, 
+                            title_prefix="CWT Analysis"):
+    
+    # Handle multi-channel case
+    if cwt_signal1.ndim == 3:  # (n_channels, n_scales, n_times)
+        n_channels = cwt_signal1.shape[0]
+    else:
+        n_channels = 1
+        cwt_signal1 = cwt_signal1[np.newaxis, :, :]
+        cwt_signal2 = cwt_signal2[np.newaxis, :, :]
+    
+    # Create 3x2 subplot (3 channels x 2 bands)
+    fig, axes = plt.subplots(3, 2, figsize=(15, 12), sharex=True)
+    fig.suptitle(f"{title_prefix} - Trial {segment_idx}", 
+                 fontsize=16, fontweight='bold')
+    
+    channel_names = ["EEG:C3", "EEG:Cz", "EEG:C4"]
+    
+    freq1 = 1/freq1
+    freq2 = 1/freq2
+    
+    for i in range(n_channels):
+        # Alpha band (left column)
+        power_alpha = norm(np.abs(cwt_signal1[i, :, :]))
+        im1 = axes[i, 0].pcolormesh(time_signal1, freq1, power_alpha, 
+                                     shading='auto', cmap='viridis')
+        axes[i, 0].invert_yaxis()
+        axes[i, 0].set_title(f"{channel_names[i]} - Alpha Band (8-11 Hz)")
+        axes[i, 0].set_ylabel("Scale")
+        axes[i, 0].grid(alpha=0.3)
+        plt.colorbar(im1, ax=axes[i, 0], label="Power")
+        
+        # Beta band (right column)
+        power_beta = norm(np.abs(cwt_signal2[i, :, :]))
+        im2 = axes[i, 1].pcolormesh(time_signal2, freq2, power_beta, 
+                                     shading='auto', cmap='plasma')
+        axes[i, 1].invert_yaxis()
+        axes[i, 1].set_title(f"{channel_names[i]} - Beta Band (26-30 Hz)")
+        axes[i, 1].set_ylabel("Scale")
+        axes[i, 1].grid(alpha=0.3)
+        plt.colorbar(im2, ax=axes[i, 1], label="Power")
+    
+    # Set x-label only on bottom row
+    axes[-1, 0].set_xlabel('Time (s)')
+    axes[-1, 1].set_xlabel('Time (s)')
+    
     plt.tight_layout()
     return fig
