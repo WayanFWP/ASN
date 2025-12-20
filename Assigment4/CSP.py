@@ -2,118 +2,69 @@ import numpy as np
 from scipy import linalg
 
 class CSP:
-    def __init__(self, n_components=4, log=True, reg=None, norm=True):
-        self.n_components = n_components  # total components (e.g., 4 = 2 per class)
+    def __init__(self, n_components=2, log=True, reg=1e-8, norm=True):
+        self.n_components = n_components
         self.log = log
         self.norm_trace = norm
         self.reg = reg
         
-        self.filters_ = None
-        self.patterns_ = None
-        self.eigen_values_ = None
-        
     def _covariance_matrix(self, X):
-        n_trials, n_channels, n_samples = X.shape
-        cov = np.zeros((n_channels, n_channels))
-        
-        for trial in range(n_trials):
-            trial_cov = np.dot(X[trial], X[trial].T)
-            
+        cov = np.zeros((X.shape[1], X.shape[1]))
+        for trial in X:
+            C = trial @ trial.T
             if self.norm_trace:
-                trial_cov = trial_cov / np.trace(trial_cov)
-            
-            cov += trial_cov
-        
-        cov = cov / n_trials
-        
-        if self.reg is not None:
-            cov += self.reg * np.eye(n_channels)
-        
+                C /= np.trace(C)
+            cov += C
+        cov /= X.shape[0]
+        cov += self.reg * np.eye(cov.shape[0])
         return cov
     
     def fit(self, X, y):
-        if X.ndim != 3:
-            raise ValueError(f"Invalid input: must be 3D, got shape {X.shape}")
+        # Get unique classes and split data accordingly
+        classes = np.unique(y)
+        if len(classes) != 2:
+            raise ValueError(f"Expected 2 classes, got {len(classes)}")
         
-        class_labels = np.unique(y)
-        if len(class_labels) != 2:
-            raise ValueError("CSP supports only 2 classes")
+        X1 = X[y == classes[0]]
+        X2 = X[y == classes[1]]
         
-        X1 = X[y == class_labels[0]]
-        X2 = X[y == class_labels[1]]
+        # Check if we have data for both classes
+        if len(X1) == 0 or len(X2) == 0:
+            raise ValueError(f"Empty class detected: class {classes[0]} has {len(X1)} samples, class {classes[1]} has {len(X2)} samples")
         
-        cov1 = self._covariance_matrix(X1)
-        cov2 = self._covariance_matrix(X2)
+        cov1, cov2 = self._covariance_matrix(X1), self._covariance_matrix(X2)
         
-        # Composite covariance
-        cov_composite = cov1 + cov2
+        cov_sum = cov1 + cov2
+        eigvals, eigvecs = linalg.eigh(cov_sum)
+        idx = np.argsort(eigvals)[::-1]
+        eigvecs = eigvecs[:, idx]
+        eigvals = eigvals[idx]
         
-        # Eigendecomposition of composite
-        EVal_comp, EVec_comp = linalg.eigh(cov_composite)
+        whitening = eigvecs @ np.diag(1.0 / np.sqrt(eigvals))
+        S1 = whitening.T @ cov1 @ whitening
         
-        # Sort descending
-        ix = np.argsort(EVal_comp)[::-1]
-        EVal_comp = EVal_comp[ix]
-        EVec_comp = EVec_comp[:, ix]
+        eigvals_s, eigvecs_s = linalg.eigh(S1)
+        idx = np.argsort(eigvals_s)[::-1]
+        eigvecs_s = eigvecs_s[:, idx]
         
-        # Whitening matrix P = Λ^(-1/2) * U^T
-        whitening = np.dot(np.diag(1.0 / np.sqrt(EVal_comp)), EVec_comp.T)
-        
-        # Transform cov1
-        S1 = np.dot(np.dot(whitening, cov1), whitening.T)
-        
-        # Eigen decomposition of S1
-        eigen_values, eigen_vectors = linalg.eigh(S1)
-        
-        # Sort descending
-        ix = np.argsort(eigen_values)[::-1]
-        eigen_values = eigen_values[ix]
-        eigen_vectors = eigen_vectors[:, ix]
-        
-        # Spatial filters W = B^T * P
-        self.filters_ = np.dot(eigen_vectors.T, whitening)
-        self.eigen_values_ = eigen_values
-        
-        # Spatial patterns (inverse of filters)
+        self.filters_ = whitening @ eigvecs_s
         self.patterns_ = linalg.pinv(self.filters_)
-        
-        print(f"CSP fitted: {self.n_components} components selected")
+        self.eigen_values_ = eigvals_s  # Store eigenvalues for plotting
         return self
     
     def transform(self, X):
-        if self.filters_ is None:
-            raise ValueError("CSP must be fitted first. Call fit() before transform()")
-        
-        n_trials, n_channels, n_samples = X.shape
-        
-        # Select m filters from each end
+        W = self.filters_.T
         m = self.n_components // 2
-        selected_filters = np.vstack([
-            self.filters_[:m],      # First m (class 1)
-            self.filters_[-m:]      # Last m (class 2)
-        ])
+        W_sel = np.vstack([W[:m], W[-m:]])
         
-        features = np.zeros((n_trials, self.n_components))
-        
-        for trial in range(n_trials):
-            # Project: Z = W * X
-            projected = np.dot(selected_filters, X[trial])
-            
-            # Compute variance per component
-            variance = np.var(projected, axis=1)
-            
-            # Normalize
-            variance = variance / np.sum(variance)
-            
-            # Log transform if specified
-            if self.log:
-                # Add small epsilon to avoid log(0)
-                features[trial] = np.log(variance + 1e-10)
-            else:
-                features[trial] = variance
-        
-        print(f"CSP features shape: {features.shape}")
-        return features
+        feats = np.zeros((X.shape[0], self.n_components))
+        for i, trial in enumerate(X):
+            Z = W_sel @ trial
+            var = np.var(Z, axis=1)
+            var /= np.sum(var)
+            feats[i] = np.log(var + 1e-10) if self.log else var
+        return feats
+
     
     def fit_transform(self, X, y):
         return self.fit(X, y).transform(X)
