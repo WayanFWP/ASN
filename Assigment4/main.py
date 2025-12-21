@@ -24,7 +24,6 @@ fs = pre.fs
 print("Data:", data.shape, "Labels:", labels.shape)
 
 X_bp = np.zeros_like(data)
-# Apply bandpass filter to each trial and channel
 for t in range(data.shape[0]):
     for c in range(data.shape[1]):
         X_bp[t, c, :] = BPF(
@@ -62,25 +61,17 @@ print(confusion_matrix(y_test, y_pred))
 print("\nClassification Report:")
 print(classification_report(y_test, y_pred))
 
-# ======================
-# VISUALIZE CSP PATTERNS
-# ======================
-# 1. Topographic map using MNE
-m = csp.n_components // 2  # patterns per class
+m = csp.n_components // 2
 selected_patterns = np.hstack([
     csp.patterns_[:, :m],      # First m patterns (class 1)
     csp.patterns_[:, -m:]      # Last m patterns (class 2)
 ])
 
-# Create evoked object for topomap plotting
-# Use sampling frequency from info
 sfreq = info['sfreq']
 evoked = mne.EvokedArray(selected_patterns, info, tmin=0, nave=1)
 
-# Plot topomaps
 fig2, axes = plt.subplots(1, csp.n_components, figsize=(12, 3))
 for idx in range(csp.n_components):
-    # Convert index to time value
     time_point = idx / sfreq
     evoked.plot_topomap(
         times=[time_point], 

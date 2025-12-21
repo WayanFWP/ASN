@@ -156,6 +156,9 @@ class Analyzer:
         erd_diff = erd_mean[:, 0] - erd_mean[:, 2]
         ers_diff = ers_mean[:, 0] - ers_mean[:, 2]
         
+        erd_ratio = erd_mean[:, 0] / (erd_mean[:, 2] + 1e-8)
+        ers_ratio = ers_mean[:, 0] / (ers_mean[:, 2] + 1e-8)
+        
         features = np.column_stack([
             # Alpha features (all channels)
             erd_mean[:, 0], erd_mean[:, 1], erd_mean[:, 2],  # mean per channel
@@ -172,17 +175,20 @@ class Analyzer:
             ers_min[:, 0],  ers_min[:, 1],  ers_min[:, 2],
             
             # Spatial contrasts
-            erd_diff,  # C3-C4 alpha
-            ers_diff   # C3-C4 beta
+            erd_diff, erd_ratio,    # C3/C4 alpha 
+            ers_diff, ers_ratio    # C3/C4 beta
         ])
         
         selected_features = np.column_stack([
-            erd_mean[:, 0], erd_mean[:, 1], erd_mean[:, 2],  # mean per channel
-            erd_var[:, 0],  erd_var[:, 1],  erd_var[:, 2],   # variance
-            ers_mean[:, 0], ers_mean[:, 1], ers_mean[:, 2],
-            ers_var[:, 0],  ers_var[:, 1],  ers_var[:, 2],
-            erd_diff,  # C3-C4 alpha
-            ers_diff   # C3-C4 beta
+            erd_mean[:, 0],  # C3 alpha mean (contralateral)
+            erd_mean[:, 2],  # C4 alpha mean (ipsilateral)
+            erd_var[:, 0],   # C3 alpha variance
+            ers_mean[:, 0],  # C3 beta mean
+            ers_mean[:, 2],  # C4 beta mean
+            erd_diff,        # C3-C4 contrast
+            ers_diff,         # C3-C4 contrast
+            erd_ratio,    # C3/C4 alpha ratio   
+            ers_ratio   # C3/C4 beta ratio
         ])
         
-        return features, selected_features   
+        return selected_features, features   

@@ -8,7 +8,7 @@ class CSP:
         self.norm_trace = norm
         self.reg = reg
         
-    def _covariance_matrix(self, X):
+    def covarianceMatrix(self, X):
         cov = np.zeros((X.shape[1], X.shape[1]))
         for trial in X:
             C = trial @ trial.T
@@ -20,7 +20,6 @@ class CSP:
         return cov
     
     def fit(self, X, y):
-        # Get unique classes and split data accordingly
         classes = np.unique(y)
         if len(classes) != 2:
             raise ValueError(f"Expected 2 classes, got {len(classes)}")
@@ -32,7 +31,7 @@ class CSP:
         if len(X1) == 0 or len(X2) == 0:
             raise ValueError(f"Empty class detected: class {classes[0]} has {len(X1)} samples, class {classes[1]} has {len(X2)} samples")
         
-        cov1, cov2 = self._covariance_matrix(X1), self._covariance_matrix(X2)
+        cov1, cov2 = self.covarianceMatrix(X1), self.covarianceMatrix(X2)
         
         cov_sum = cov1 + cov2
         eigvals, eigvecs = linalg.eigh(cov_sum)
@@ -49,7 +48,7 @@ class CSP:
         
         self.filters_ = whitening @ eigvecs_s
         self.patterns_ = linalg.pinv(self.filters_)
-        self.eigen_values_ = eigvals_s  # Store eigenvalues for plotting
+        self.eigen_values_ = eigvals_s
         return self
     
     def transform(self, X):
@@ -63,8 +62,10 @@ class CSP:
             var = np.var(Z, axis=1)
             var /= np.sum(var)
             feats[i] = np.log(var + 1e-10) if self.log else var
+            
+        print("Applied CSP transformation")
         return feats
 
     
-    def fit_transform(self, X, y):
+    def fitTransform(self, X, y):
         return self.fit(X, y).transform(X)

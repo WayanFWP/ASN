@@ -53,14 +53,16 @@ class dataLoader:
         self.raw.compute_psd()
         
         events, event_id = self.labeling(self.data_type)
+        tmin= -1
+        tmax= 3.0
         
         if self.data_type == "train":
             epochs = mne.Epochs(
                 self.raw,
                 events,
                 event_id=event_id,
-                tmin=0.5,
-                tmax=3.0,
+                tmin=tmin,
+                tmax=tmax,
                 baseline=None,
                 preload=True,
                 reject_by_annotation=True
@@ -75,8 +77,8 @@ class dataLoader:
                 self.raw,
                 events,
                 event_id=None,
-                tmin=0.5,
-                tmax=3.0,
+                tmin=tmin,
+                tmax=tmax,
                 baseline=None,
                 preload=True,
                 reject_by_annotation=True,
