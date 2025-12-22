@@ -183,6 +183,7 @@ class Analyzer:
             erd_mean[:, 0],  # C3 alpha mean (contralateral)
             erd_mean[:, 2],  # C4 alpha mean (ipsilateral)
             erd_var[:, 0],   # C3 alpha variance
+            ers_var[:, 2],   # C4 beta variance
             ers_mean[:, 0],  # C3 beta mean
             ers_mean[:, 2],  # C4 beta mean
             erd_diff,        # C3-C4 contrast

@@ -336,7 +336,122 @@ def show(X_train, y_train, X_test, y_test, fs, trial_idx):
         st.pyplot(fig)
         st.caption("Box plots show median, quartiles, and outliers for each feature")
     
-    if n_features >= 2:
+    
+    if n_features >= 3:
+        with st.expander("3. Feature Space Visualization (3D)", expanded=False):
+            st.write("**3D Interactive Feature Space:**")
+            
+            import plotly.graph_objects as go
+            
+            class0_mask = y_test == 0
+            class1_mask = y_test == 1
+            
+            # Use first 3 features for 3D plot
+            fig = go.Figure()
+            
+            # Add Left Hand class
+            fig.add_trace(go.Scatter3d(
+                x=features[class0_mask, 0],
+                y=features[class0_mask, 1],
+                z=features[class0_mask, 2] if n_features > 2 else features[class0_mask, -1],
+                mode='markers',
+                name='Left Hand (Class 0)',
+                marker=dict(
+                    color='red',
+                    size=6,
+                    opacity=0.7,
+                    line=dict(color='darkred', width=1)
+                ),
+                text=[f'Trial {i}<br>Class: Left Hand<br>CSP1: {features[i,0]:.3f}<br>CSP2: {features[i,1]:.3f}<br>CSP3: {features[i,2]:.3f}' 
+                    for i in np.where(class0_mask)[0]],
+                hovertemplate='<b>%{text}</b><extra></extra>'
+            ))
+            
+            # Add Right Hand class
+            fig.add_trace(go.Scatter3d(
+                x=features[class1_mask, 0],
+                y=features[class1_mask, 1],
+                z=features[class1_mask, 2] if n_features > 2 else features[class1_mask, -1],
+                mode='markers',
+                name='Right Hand (Class 1)',
+                marker=dict(
+                    color='blue',
+                    size=6,
+                    opacity=0.7,
+                    line=dict(color='darkblue', width=1)
+                ),
+                text=[f'Trial {i}<br>Class: Right Hand<br>CSP1: {features[i,0]:.3f}<br>CSP2: {features[i,1]:.3f}<br>CSP3: {features[i,2]:.3f}' 
+                    for i in np.where(class1_mask)[0]],
+                hovertemplate='<b>%{text}</b><extra></extra>'
+            ))
+            
+            # Highlight selected trial
+            fig.add_trace(go.Scatter3d(
+                x=[features[trial_idx, 0]],
+                y=[features[trial_idx, 1]],
+                z=[features[trial_idx, 2] if n_features > 2 else features[trial_idx, -1]],
+                mode='markers',
+                name=f'Selected Trial #{trial_idx}',
+                marker=dict(
+                    color='yellow',
+                    size=12,
+                    symbol='diamond',
+                    line=dict(color='black', width=2)
+                ),
+                text=f'Trial {trial_idx}<br>Class: {"Left" if y_test[trial_idx]==0 else "Right"}<br>CSP1: {features[trial_idx,0]:.3f}<br>CSP2: {features[trial_idx,1]:.3f}<br>CSP3: {features[trial_idx,2]:.3f}',
+                hovertemplate='<b>%{text}</b><extra></extra>'
+            ))
+            
+            # Update layout
+            fig.update_layout(
+                title='3D CSP Feature Space: Interactive Class Separation',
+                scene=dict(
+                    xaxis_title='CSP Feature 1',
+                    yaxis_title='CSP Feature 2',
+                    zaxis_title='CSP Feature 3',
+                    camera=dict(
+                        eye=dict(x=1.5, y=1.5, z=1.3)
+                    ),
+                    xaxis=dict(backgroundcolor="rgb(230, 230,230)"),
+                    yaxis=dict(backgroundcolor="rgb(230, 230,230)"),
+                    zaxis=dict(backgroundcolor="rgb(230, 230,230)")
+                ),
+                width=900,
+                height=700,
+                legend=dict(
+                    x=0.02,
+                    y=0.98,
+                    bgcolor='rgba(255,255,255,0.8)',
+                    bordercolor='black',
+                    borderwidth=1
+                )
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            st.caption("🖱️ **Interactive:** Rotate by dragging, zoom with scroll, hover for details")
+            
+            # Separation metrics
+            st.write("**3D Separation Quality Metrics:**")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                class0_center = np.mean(features[class0_mask, :3], axis=0)
+                class1_center = np.mean(features[class1_mask, :3], axis=0)
+                inter_class_dist = np.linalg.norm(class0_center - class1_center)
+                st.metric("3D Inter-class Distance", f"{inter_class_dist:.3f}")
+            
+            with col2:
+                intra_class_var = (np.mean(np.var(features[class0_mask, :3], axis=0)) + 
+                                np.mean(np.var(features[class1_mask, :3], axis=0))) / 2
+                st.metric("Avg Intra-class Variance", f"{intra_class_var:.3f}")
+            
+            with col3:
+                separability_ratio = inter_class_dist / (np.sqrt(intra_class_var) + 1e-10)
+                st.metric("3D Separability Ratio", f"{separability_ratio:.3f}")
+
+    
+    elif n_features >= 2:
         with st.expander("3. Feature Space Visualization (2D)", expanded=False):
             st.write("**Most Discriminative Components:**")
             
