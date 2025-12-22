@@ -2,5 +2,6 @@ refrence
 __pycache__
 *.vscode
 **/data/raw
+**/data/splited
 **/dat/raw
 *.zip
