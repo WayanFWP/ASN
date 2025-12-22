@@ -2,8 +2,8 @@ import numpy as np
 from scipy import linalg
 
 class CSP:
-    def __init__(self, n_components=2, log=True, reg=1e-8, norm=True):
-        self.n_components = n_components
+    def __init__(self, csp_component=2, log=True, reg=1e-8, norm=True):
+        self.n_components = csp_component
         self.log = log
         self.norm_trace = norm
         self.reg = reg
@@ -16,7 +16,8 @@ class CSP:
                 C /= np.trace(C)
             cov += C
         cov /= X.shape[0]
-        cov += self.reg * np.eye(cov.shape[0])
+        if self.reg is not None and self.reg > 0:
+            cov += self.reg * np.eye(cov.shape[0])
         return cov
     
     def fit(self, X, y):

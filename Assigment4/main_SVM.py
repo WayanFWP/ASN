@@ -84,7 +84,7 @@ for t in range(X_test_raw.shape[0]):
         )
 
 # ========== CSP FEATURES ==========
-csp = CSP(n_components=4)
+csp = CSP(csp_component=4)
 X_train_csp = csp.fitTransform(X_train_raw_bp, y_train)
 X_test_csp = csp.transform(X_test_raw_bp)
 

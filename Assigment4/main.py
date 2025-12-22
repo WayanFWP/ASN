@@ -29,7 +29,7 @@ for t in range(data.shape[0]):
         X_bp[t, c, :] = BPF(
             data[t, c, :])
         
-csp = CSP(n_components=6)
+csp = CSP(csp_component=6)
 X_csp = csp.fit_transform(data, labels)
 X_test_CSP = csp.transform(data)
 

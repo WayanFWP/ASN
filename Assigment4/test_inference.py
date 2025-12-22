@@ -17,7 +17,7 @@ y_train = np.concatenate(y_list)
 data_eval = dataLoader("B0103T", data_type="train")
 X_test = data_eval.X
 
-csp = CSP(n_components=6, log=True)
+csp = CSP(csp_component=6, log=True)
 X_train_csp = csp.fit_transform(X_train, y_train)
 X_test_csp  = csp.transform(X_test)
 

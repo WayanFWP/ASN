@@ -39,7 +39,7 @@ print("Test shape:", X_test.shape)
 # ======================
 # CSP + LDA (Using custom CSP)
 # ======================
-csp = CSP(n_components=4)
+csp = CSP(csp_component=4)
 X_train_csp = csp.fitTransform(X_train, y_train)
 X_test_csp  = csp.transform(X_test)
 
