@@ -1,103 +1,120 @@
 import streamlit as st
+import numpy as np
 from preproceed import dataLoader
-from Utils import *
-from Plot import *
-import Analyzer
+from pages import CSPPipeline, ERPPipeline, MLPipeline
 
 class GUI:
     def __init__(self):
-        # initialize
-        st.set_page_config(page_title="EEG Signal Analysis GUI", layout="wide")
-        self.loader = st.sidebar.file_uploader("Upload EEG Data File", type=["gdf"]) 
-        if self.loader is not None:
-            preproced = dataLoader(self.loader)
-            self.data, self.labels = preproced.X, preproced.y
-            self.fs = preproced.fs
+        st.set_page_config(page_title="EEG Signal Analysis GUI")
+
+        # ---------- Session State ----------
+        defaults = {
+            "train_data": None,
+            "train_labels": None,
+            "test_data": None,
+            "test_labels": None,
+            "eval_data": None,
+            "eval_labels": None,
+            "fs": None
+        }
+
+        for k, v in defaults.items():
+            if k not in st.session_state:
+                st.session_state[k] = v
+
+        # ---------- Sidebar ----------
+        self.page = st.sidebar.selectbox(
+            "Select Analysis Pipeline",
+            ("ERD/ERS Pipeline", "CSP Pipeline", "MLPipeline")
+        )
+
+        self.trial_idx = 0
+
+        self.loader = st.sidebar.file_uploader(
+            "Upload Train EEG Data (1T,2T,3T)",
+            type=["gdf"],
+            accept_multiple_files=True
+        )
+
+        # ---------- TRAIN / TEST SPLIT ----------
+        if self.loader and st.session_state.train_data is None:
+            train_X, train_y = [], []
+            test_X, test_y = [], []
+
+            fs = None
+
+            for file in self.loader:
+                try:
+                    pre = dataLoader(file)
+                    fs = pre.fs
+
+                    if "3T" in file.name:
+                        test_X.append(pre.X)
+                        test_y.append(pre.y)
+                    elif "1T" in file.name or "2T" in file.name:
+                        train_X.append(pre.X)
+                        train_y.append(pre.y)
+                    else:
+                        st.warning(f"Unknown file ignored: {file.name}")
+
+                except Exception as e:
+                    st.error(f"Failed loading {file.name}: {e}")
+
+            if train_X:
+                st.session_state.train_data = np.concatenate(train_X, axis=0)
+                st.session_state.train_labels = np.concatenate(train_y, axis=0)
+
+            if test_X:
+                st.session_state.test_data = np.concatenate(test_X, axis=0)
+                st.session_state.test_labels = np.concatenate(test_y, axis=0)
+
+            st.session_state.fs = fs
+
+        # ---------- Bind instance variables ----------
+        self.data = st.session_state.train_data
+        self.labels = st.session_state.train_labels
+        self.fs = st.session_state.fs
+
+        # ---------- UI Controls ----------
+        if self.data is not None:
             self.trial_idx = st.sidebar.number_input(
-                "Select Trial Index",
-                min_value=0,
-                max_value=max(self.data.shape[0] - 1, 0),
-                value=0,
-                step=1
-            )
-            self.window_size = st.sidebar.number_input(
-                "Moving Average Window Size (samples)",
-                min_value=1,
-                max_value=1000,
-                value=100,
-                step=1
+                "Trial Index",
+                0, self.data.shape[0] - 1, 0
             )
         else:
-            st.error("Please upload a .gdf file to begin analysis.")
-        
+            st.info("Upload EEG data to begin")
+
     def run(self):
-        if self.loader is None:
-            st.title("EEG Signal Analysis GUI")
-            st.write("This GUI allows you to visualize EEG signal processing results.")
+        if self.data is None:
+            st.write("Waiting for EEG data...")
+            return
 
-            # Sidebar for user inputs
-            st.sidebar.header("User Inputs")
-        else:
-            self.pipeline()
+        if self.page == "ERD/ERS Pipeline":
+            ERPPipeline.show(
+                self.data, self.labels, self.fs,
+                st.session_state.test_data, st.session_state.test_labels,
+                self.trial_idx
+            )
 
-    def pipeline(self):
-        data_analyzer = Analyzer.Analyzer(fs=self.fs)
-        data_analyzer.window_size = self.window_size
-        data_analyzer.run(self.data)
-        
-        baseline_start = int(0.0 * self.fs )
-        baseline_end   = int(1.0 * self.fs )       
-        
-        data_analyzer.apply_baseline(baseline_start, baseline_end)
-        data_analyzer.apply_spatial_filter(method='laplacian') 
-                
-        st.subheader("ERD/ERS Data Plot")
-                
-        # Raw Signal
-        with st.expander("🔍 Raw EEG Signal", expanded=False):
-            st.write(f"Original EEG data from {self.trial_idx}th trial before any processing.")
-            fig = plotSignal(data_analyzer.data, fs=self.fs)
-            st.pyplot(fig)
+        elif self.page == "CSP Pipeline":
+            CSPPipeline.show(
+                self.data, self.labels, st.session_state.test_data, st.session_state.test_labels, self.fs,
+                self.trial_idx
+            )
 
-        st.divider()
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            with st.expander("1. BPF EEG Signal", expanded=False):
-                fig = plot2Signal(data_analyzer.erd_bandpassed, data_analyzer.ers_bandpassed, 
-                            fs=250, label1='ERD Band (8-11 Hz)', label2='ERS Band (26-30 Hz)', idx=self.trial_idx)
-                st.pyplot(fig)
-        with col2:
-            with st.expander("2. Squared Signal", expanded=False):
-                fig = plot2Signal(data_analyzer.erd_squared, data_analyzer.ers_squared, 
-                            fs=250, label1='ERD Squared', label2='ERS Squared', idx=self.trial_idx)
-                st.pyplot(fig)
+        elif self.page == "MLPipeline":
+            MLPipeline.show(
+                X_train=st.session_state.train_data,
+                Y_train=st.session_state.train_labels,
+                X_test=st.session_state.test_data,
+                Y_test=st.session_state.test_labels,
+                fs=self.fs,
+                trial_idx=self.trial_idx
+            )
 
-        # Moving Average
-        with st.expander("3. MAV EEG Signal", expanded=False):
-            st.write("Moving Average over squared signal to smooth the data.")
-            fig = plot2Signal(data_analyzer.erd_movingavg, data_analyzer.ers_movingavg, 
-                        fs=250, label1='ERD Moving Average', label2='ERS Moving Average', idx=self.trial_idx)
-            st.pyplot(fig)
 
-        st.divider()
-
-        # Final ERD/ERS
-        with st.expander("4. Baseline Norm using laplacian", expanded=True):
-            st.caption("Final ERD/ERS values after spatial filtering and baseline normalization")
-            col1, col2 = st.columns(2)
-            with col1:
-                st.info("**ERD (Alpha)**: Event-Related Desynchronization")
-            with col2:
-                st.success("**ERS (Beta)**: Event-Related Synchronization")
-                
-            fig = merge2Signals(data_analyzer.alpha, data_analyzer.beta,
-                        fs=250, label1='Alpha ERD (%) - Laplacian', label2='Beta ERS (%) - Laplacian', idx=self.trial_idx)
-            st.pyplot(fig)
-        
 def main():
-    gui = GUI()
-    gui.run()
+    GUI().run()
 
 if __name__ == "__main__":
     main()
