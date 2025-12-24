@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from HRV import HRV as feature
 
-from Analyze import Respiratory, Vasometric, HeartRate
+from Analysis import Respiratory, Vasometric, HeartRate
 
 # Load data
 # load_file = pd.read_csv("data/bidmc_07_Signals.csv")
@@ -35,11 +35,11 @@ signal = downSample(load_file[selected_signal].values, factor)
 # == preprocessing ==
 mean_signal = np.mean(signal)
 signal = signal - mean_signal  # Centering
-signal = BPF(signal, 1, 45, fs) # Bandpass Filter 1-40 Hz
+signal = BPF(signal, 1, 45, fs) # Bandpass Filter 1-45 Hz
 
 # == Analysis ==
 # Heart Rate Analysis
-signal_Hr, peaks_Hr, BPM = HR.analyze(signal)
+signal_Hr, peaks_Hr, BPM = HR.analysis(signal)
 rr_intervals = np.diff(peaks_Hr / fs)
 print(f"BPM: {BPM}")
 
@@ -49,7 +49,7 @@ J_vaso = 8
 
 # Respiratory Analysis
 signal_DWT = coef.applying(signal, specific_j=J_Resp)
-resp_data , resp_peaks, BrPM = Resp.analyze(signal_DWT[J_Resp])
+resp_data , resp_peaks, BrPM = Resp.analysis(signal_DWT[J_Resp])
 freq, magnitude, peak_freq, peak_mag = Resp.get_freq()
 resp_duration = len(signal_DWT[J_Resp]) / fs  # in seconds
 print(f"Respiratory frequency: {peak_freq} Hz")
@@ -57,7 +57,7 @@ print(f"BrPM: {BrPM}")
 
 # Vasometric Analysis
 signal_dwtvaso = coef.applying(signal, specific_j=J_vaso)
-vaso_freq, vaso_mag, peak_vaso, vaso_peak_mag = Vaso.analyze(signal_dwtvaso[J_vaso])
+vaso_freq, vaso_mag, peak_vaso, vaso_peak_mag = Vaso.analysis(signal_dwtvaso[J_vaso])
 print(f"Vasometric Peak Frequency: {peak_vaso} Hz")
 
 # Compute HRV features

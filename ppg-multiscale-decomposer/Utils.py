@@ -1,20 +1,34 @@
 import numpy as np
 import ctypes
+import platform
+import os
 
 class Complex128(ctypes.Structure):
     _fields_ = [("real", ctypes.c_double),
                 ("imag", ctypes.c_double)]
+    
+if platform.system() == "Windows":
+    lib_ext = ".dll"
+elif platform.system() == "Darwin":  # macOS
+    lib_ext = ".dylib"
+else:  # Linux
+    lib_ext = ".so"
 
-# Load .so
-convo = ctypes.CDLL("Acceleration/convolution.so")
-fft = ctypes.CDLL("Acceleration/FFT.so")
+# Get the directory of this script
+script_dir = os.path.dirname(os.path.abspath(__file__))
+acceleration_dir = os.path.join(script_dir, "Acceleration")
+
+# Load the libraries with the correct extension
+fft = ctypes.CDLL(os.path.join(acceleration_dir, f"FFT{lib_ext}"))
+convolution_lib = ctypes.CDLL(os.path.join(acceleration_dir, f"convolution{lib_ext}"))
+
 
 # C function signature: double* convolution(const double*, int, const double*, int)
-convo.convolution.argtypes = [
+convolution_lib.convolution.argtypes = [
     ctypes.POINTER(ctypes.c_double), ctypes.c_int,
     ctypes.POINTER(ctypes.c_double), ctypes.c_int
 ]
-convo.convolution.restype = ctypes.POINTER(ctypes.c_double)  # returns double*
+convolution_lib.convolution.restype = ctypes.POINTER(ctypes.c_double)  # returns double*
 
 # C function signature: double* fft(const double* x, int N)
 fft.fft.argtypes = [np.ctypeslib.ndpointer(dtype=np.complex128, ndim=1, flags='C_CONTIGUOUS'),
@@ -22,6 +36,7 @@ fft.fft.argtypes = [np.ctypeslib.ndpointer(dtype=np.complex128, ndim=1, flags='C
 fft.fft.restype = ctypes.POINTER(Complex128)
 fft.free_memory.argtypes = [ctypes.c_void_p]
 fft.free_memory.restype = None
+
 
 def dirac(x):
     return 1 if x == 0 else 0
@@ -57,7 +72,7 @@ def convolve(x, h):
     signal_len, filt_len = len(signal), len(filt)
     conv_len = signal_len + filt_len - 1
     
-    result_ptr = convo.convolution(
+    result_ptr = convolution_lib.convolution(
         signal.ctypes.data_as(ctypes.POINTER(ctypes.c_double)), signal_len,
         filt.ctypes.data_as(ctypes.POINTER(ctypes.c_double)), filt_len
     )
@@ -66,7 +81,7 @@ def convolve(x, h):
     result = np.array([result_ptr[i] for i in range(conv_len)])
     
     # Free the allocated memory
-    convo.free(result_ptr)
+    convolution_lib.free_memory(result_ptr)
     return result
 
 def count_zero_crossings(sig):

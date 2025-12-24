@@ -207,5 +207,4 @@ This project uses BCI Competition data with the following structure:
 - **Sampling Rate**: 250 Hz
 - **Classes**: 0 = Left Hand, 1 = Right Hand
 
-
 **Note**: Ensure all data files are placed in the correct directories (`data/raw/` or `data/splited/`) before running the scripts.

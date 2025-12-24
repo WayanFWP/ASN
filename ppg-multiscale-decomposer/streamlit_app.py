@@ -1,21 +1,16 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.express as px
 from scipy.signal import welch, hilbert
 from scipy.interpolate import interp1d
-import io
-import json
-from contextlib import redirect_stdout, redirect_stderr
 
-# Import your modules
 from Coeficient import Coeficient
 from Utils import *
 from HRV import HRV as feature
-from Analyze import Respiratory, Vasometric, HeartRate
+from analysis import Respiratory, Vasometric, HeartRate
 
 def main():
     st.set_page_config(
@@ -150,17 +145,17 @@ def run_analysis_cached(signal_data, fs_effective, factor, bp_low, bp_high, j_re
     signal = BPF(signal, bp_low, bp_high, fs_effective)
     
     # Heart Rate Analysis
-    signal_Hr, peaks_Hr, BPM = HR.analyze(signal)
+    signal_Hr, peaks_Hr, BPM = HR.analysis(signal)
     rr_intervals = np.diff(peaks_Hr / fs_effective)
     
     # Respiratory Analysis
     signal_DWT = coef.applying(signal, specific_j=j_resp)
-    resp_data, resp_peaks, BrPM = Resp.analyze(signal_DWT[j_resp])
+    resp_data, resp_peaks, BrPM = Resp.analysis(signal_DWT[j_resp])
     freq, magnitude, peak_freq, peak_mag = Resp.get_freq()
     
     # Vasometric Analysis
     signal_dwtvaso = coef.applying(signal, specific_j=j_vaso)
-    vaso_freq, vaso_mag, peak_vaso, vaso_peak_mag = Vaso.analyze(signal_dwtvaso[j_vaso])
+    vaso_freq, vaso_mag, peak_vaso, vaso_peak_mag = Vaso.analysis(signal_dwtvaso[j_vaso])
     
     # HRV Analysis
     if len(rr_intervals) > 1:

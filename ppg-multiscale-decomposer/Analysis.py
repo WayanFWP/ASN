@@ -5,7 +5,7 @@ class HeartRate:
     def __init__(self, fs):
         self.fs = fs
 
-    def analyze(self, signal_data):
+    def analysis(self, signal_data):
         # Process the heart rate signal data
         min_dist_sample = int(self.fs * 0.4)  # Minimum distance between peaks in samples
         peaks, _ = find_peaks(signal_data, height=0, distance=max(1, min_dist_sample), prominence=1.2 * np.std(signal_data))
@@ -21,7 +21,7 @@ class Respiratory:
         self.fs = fs
         self.signal_data = None
 
-    def analyze(self, signal_data):
+    def analysis(self, signal_data):
         self.signal_data = signal_data
         
         # Process the respiratory signal data
@@ -51,8 +51,8 @@ class Vasometric:
     def __init__(self, fs):
         self.fs = fs
 
-    def analyze(self, signal_data):
-        # Analyze vasomotor signal data
+    def analysis(self, signal_data):
+        # analysis vasomotor signal data
         N = len(signal_data)
         freq = np.fft.rfftfreq(N, d=1./self.fs)
         fft_values = np.fft.rfft(signal_data)

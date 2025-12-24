@@ -16,11 +16,15 @@ double* convolution(const double *signal, int signal_len,
         for (int k = 0; k < filter_len; k++) {
             int idx = n - k;
             if (idx >= 0 && idx < signal_len) {
-                conv_result[n] += signal[idx] * filter[k];  // Changed from filter[filter_len - 1 - k]
+                conv_result[n] += signal[idx] * filter[k];
             }
         }
     }
     return conv_result;
+}
+
+void free_memory(void* ptr) {
+    free(ptr);
 }
 
 #ifdef __cplusplus
