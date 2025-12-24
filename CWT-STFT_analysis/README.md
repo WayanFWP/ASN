@@ -23,11 +23,6 @@ CWT-STFT_analysis/
 ├── preproceed.py    # Data preprocessing and format conversion
 ├── README.md        # This file
 └── dat/             # Data directory
-    ├── a0003.csv
-    ├── a0004.csv
-    ├── a0007.csv
-    ├── a0014.csv
-    └── a0042.csv
 ```
 
 ## Requirements

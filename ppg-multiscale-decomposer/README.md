@@ -2,18 +2,6 @@
 
 A comprehensive signal analysis tool for Photoplethysmography (PPG) signals using multi-scale decomposition via Discrete Wavelet Transform (DWT). This project extracts physiological information including heart rate, respiratory rate, vasometric activity, and detailed Heart Rate Variability (HRV) metrics.
 
-## Table of Contents
-
-- [Features](#features)
-- [Architecture](#architecture)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Modules](#modules)
-- [Signal Processing Pipeline](#signal-processing-pipeline)
-- [Output Metrics](#output-metrics)
-- [Requirements](#requirements)
-- [Examples](#examples)
-
 ## Features
 
 - **Multi-Scale Signal Decomposition**: Custom DWT implementation with 8 decomposition levels
