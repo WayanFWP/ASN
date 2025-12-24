@@ -159,6 +159,12 @@ class Analyzer:
         erd_ratio = erd_mean[:, 0] / (erd_mean[:, 2] + 1e-8)
         ers_ratio = ers_mean[:, 0] / (ers_mean[:, 2] + 1e-8)
         
+        from scipy.stats import kurtosis, skew
+        erd_kurtosis = kurtosis(erd[:, :, start:end], axis=2)
+        ers_kurtosis = kurtosis(ers[:, :, start:end], axis=2)
+        
+        erd_skewness = skew(erd[:, :, start:end], axis=2)
+        ers_skewness = skew(ers[:, :, start:end], axis=2)
         features = np.column_stack([
             # Alpha features (all channels)
             erd_mean[:, 0], erd_mean[:, 1], erd_mean[:, 2],  # mean per channel
@@ -174,18 +180,23 @@ class Analyzer:
             ers_max[:, 0],  ers_max[:, 1],  ers_max[:, 2],
             ers_min[:, 0],  ers_min[:, 1],  ers_min[:, 2],
             
+            erd_kurtosis[:, 0], erd_kurtosis[:, 1], erd_kurtosis[:, 2],
+            ers_kurtosis[:, 0], ers_kurtosis[:, 1], ers_kurtosis[:, 2],
+            erd_skewness[:, 0], erd_skewness[:, 1], erd_skewness[:, 2],
+            ers_skewness[:, 0], ers_skewness[:, 1], ers_skewness[:, 2],
+            
             # Spatial contrasts
             erd_diff, erd_ratio,    # C3/C4 alpha 
             ers_diff, ers_ratio    # C3/C4 beta
         ])
         
         selected_features = np.column_stack([
-            erd_mean[:, 0],  # C3 alpha mean (contralateral)
-            erd_mean[:, 2],  # C4 alpha mean (ipsilateral)
             erd_var[:, 0],   # C3 alpha variance
             ers_var[:, 2],   # C4 beta variance
-            ers_mean[:, 0],  # C3 beta mean
-            ers_mean[:, 2],  # C4 beta mean
+            erd_kurtosis[:, 0],  # C3 alpha kurtosis
+            ers_kurtosis[:, 2],  # C4 beta kurtosis
+            erd_skewness[:, 0],  # C3 alpha skewness
+            ers_skewness[:, 2],  # C4 beta skewness
             erd_diff,        # C3-C4 contrast
             ers_diff,         # C3-C4 contrast
             erd_ratio,    # C3/C4 alpha ratio   
