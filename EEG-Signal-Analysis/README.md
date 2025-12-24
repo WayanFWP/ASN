@@ -78,7 +78,6 @@ cd "ASN\Assigment4"
 2. **Create a virtual environment** (recommended):
 ```bash
 python -m venv venv
-.\venv\Scripts\Activate
 ```
 
 3. **Install dependencies**:
@@ -197,14 +196,39 @@ The system achieves competitive performance on BCI Competition data:
 - Beta (26-30 Hz) synchronization patterns
 - Strong spatial discrimination between C3 and C4 channels
 
-## Dataset
-
+## Dataset Information
 This project uses BCI Competition data with the following structure:
 
 - **Training Files**: B01-B09 subjects, T suffix (e.g., B0101T.gdf)
 - **Evaluation Files**: 3T suffix (e.g., B0103T.gdf)
 - **Channels**: C3, Cz, C4 (motor cortex)
 - **Sampling Rate**: 250 Hz
-- **Classes**: 0 = Left Hand, 1 = Right Hand
+- **Classes**: 0 = Left Hand, 1 = Right Hand (Self labeled on  [preproceed.py](preproceed.py))
 
-**Note**: Ensure all data files are placed in the correct directories (`data/raw/` or `data/splited/`) before running the scripts.
+Used this as an refrence : [BCI Competition 2008 – Graz data set B
+](https://www.bbci.de/competition/iv/desc_2b.pdf)
+
+## References
+
+1. Blankertz, B., et al. (2008). "The BCI Competition IV." IEEE Trans. on Neural Systems and Rehabilitation Engineering.
+2. Ramoser, H., et al. (2000). "Optimal spatial filtering of single trial EEG during imagined hand movement."
+3. Pfurtscheller, G., & Lopes da Silva, F. H. (1999). "Event-related EEG/MEG synchronization and desynchronization."
+
+## Troubleshooting
+
+**Issue: "No module named 'mne'"**
+```bash
+pip install mne
+```
+
+**Issue: CSP components error**
+- Ensure `csp_component` is even (2, 4, or 6)
+- Check you have data for both classes
+
+**Issue: Low accuracy**
+- Verify correct channels (C3, Cz, C4)
+- Check baseline period alignment
+- Try different CSP components
+- Combine multiple training sessions
+
+**Note**: Ensure all data files are placed in the correct directories (`data/raw/`) before running the scripts.
